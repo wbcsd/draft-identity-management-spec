@@ -31,7 +31,6 @@ A federated, DNS-like directory of **LEI-identified** entities with hierarchical
 - PACT: <https://www.carbon-transparency.org>
 - GLEIF LEI/vLEI: <https://www.gleif.org>
 
-## Notes
+## Contact
 
-- The PACT Tech Master Deck referenced during drafting is an internal WBCSD file and is **not tracked in this repository** (see `.gitignore`).
-- Contact: Gertjan Schuurmans (schuurmans@wbcsd.org) / pact-support@wbcsd.org.
+- Gertjan Schuurmans (schuurmans@wbcsd.org) / pact-support@wbcsd.org.
