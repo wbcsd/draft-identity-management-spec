@@ -18,7 +18,6 @@ A **federated, DNS-like directory** of organisations identified by their **LEI**
 
 | Topic | Decision |
 |-------|----------|
-| **Ambition** | Launch as a **low-friction directory** (self-asserted identities, no onboarding gate), with a **verified tier following soon**. Assurance is an *attribute* of an identity, never a barrier to joining. |
 | **Identifier** | The **LEI is the recommended canonical identifier**, carried inside the protocol's existing open `companyIds` field. **No new PACT-specific identifier** — organisations use what they already have. LEI is recommended, not required, in V1. |
 | **Hierarchy** | Identity is per **operating entity**; parent/subsidiary relationships are **read from LEI Level-2 data**, not maintained by PACT. (No hierarchy until an entity has an LEI — which also makes the LEI worth getting.) |
 | **Verification** | **vLEI is the verified tier**, in-scope but optional. It proves organisational identity at connection time; **entity-level** verification ships first, **delegated-role** credentials (e.g. a solution provider proving it is the authorised exchange agent for a customer) are the named next step. Natural-person credentials are out of scope. |
@@ -34,7 +33,7 @@ The architecture makes **LEI the backbone of network identity** and **vLEI the m
 
 ## What we are asking the Working Group
 
-To pressure-test these positions — in particular the **LEI-as-recommended-identifier** stance, the **peer-to-peer credential model with RFC 7591**, and the **two-control privacy model** — ahead of a first draft addendum.
+We are asking the working group to to discuss and decide on these positions — in particular the **LEI-as-recommended-identifier** stance, the **peer-to-peer credential model with RFC 7591**, and the **two-control privacy model** — ahead of a first draft addendum.
 
 ## Timeline
 
@@ -45,5 +44,3 @@ Draft addendum **June/July** → Technology Working Group reopens **August** →
 Policy-based auto-approval of connections; the exact discovery API methods and schemas; the precise LEI URN encoding; whether the network should mandate audit logging; and the "invite a non-member supplier to join" journey (likely a platform feature rather than normative spec).
 
 ---
-
-*Companion materials: the full annotated addendum structure and the resolved-decisions log; a first draft of the Identity Model section (§3). Available on request.*

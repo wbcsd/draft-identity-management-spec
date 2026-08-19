@@ -96,7 +96,7 @@ This treatment resolves the common case where two related operating entities (fo
 
 ---
 
-### References used in this section (to be consolidated into the addendum References)
+### References used in this section
 
 - [DATA-EXCHANGE-PROTOCOL] — Technical Specifications for PCF Data Exchange, V3.0.3.
 - [RFC2119], [RFC8174] — requirement-level keywords.

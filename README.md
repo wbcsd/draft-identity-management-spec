@@ -15,9 +15,8 @@ Suggested reading order is top to bottom — from background, to summary, to str
 
 | File | Role |
 |------|------|
-| [`PACT-Identity-Management-Orientation-Note.md`](PACT-Identity-Management-Orientation-Note.md) | **Background & orientation.** What exists today (V3 data model, OAuth auth, the §5.3 gap), the history of the IM initiative, current workstreams, open tensions, and the third-party standards landscape (GLEIF LEI/vLEI, EUDI, VC/DID). Start here for context. |
 | [`PACT-IM-Decisions-Brief.md`](PACT-IM-Decisions-Brief.md) | **2-page decisions brief.** A circulatable summary of the proposed architecture and the key design decisions, with a section on what it means for GLEIF. For the tech team and prospective Working Group members. |
-| [`PACT-Identity-Management-Addendum-Outline.md`](PACT-Identity-Management-Addendum-Outline.md) | **Annotated addendum structure + decisions log.** The full section-by-section structure of the planned addendum (mirroring the V3 spec conventions), and §12 the consolidated, resolved design-decisions log. The working master for what the spec will contain. |
+| [`PACT-IM-Addendum-Outline.md`](PACT-IM-Addendum-Outline.md) | **Annotated addendum structure + decisions log.** The full section-by-section structure of the planned addendum (mirroring the V3 spec conventions), and §12 the consolidated, resolved design-decisions log. The working master for what the spec will contain. |
 | [`PACT-IM-Addendum-Section-3-Identity-Model.md`](PACT-IM-Addendum-Section-3-Identity-Model.md) | **Draft spec text — §3 Identity Model.** First section drafted as normative prose (RFC 2119 keywords): actors, entities/operators/nodes, LEI-in-`companyIds` identifiers, assurance levels, and LEI Level-2 hierarchy. |
 
 ## Architecture in one line
@@ -31,7 +30,6 @@ A federated, DNS-like directory of **LEI-identified** entities with hierarchical
 - PACT: <https://www.carbon-transparency.org>
 - GLEIF LEI/vLEI: <https://www.gleif.org>
 
-## Notes
+## Contact
 
-- The PACT Tech Master Deck referenced during drafting is an internal WBCSD file and is **not tracked in this repository** (see `.gitignore`).
-- Contact: Gertjan Schuurmans (schuurmans@wbcsd.org) / pact-support@wbcsd.org.
+Gertjan Schuurmans (schuurmans@wbcsd.org) / pact-support@wbcsd.org.
