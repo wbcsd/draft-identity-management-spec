@@ -1,4 +1,4 @@
-# PACT Identity Management — Orientation Note
+# PACT Identity Management — Background Note
 
 *Working background document for drafting the PACT Identity Management technical specification.*
 
@@ -105,7 +105,7 @@ Shared dependencies and risks already flagged: both require **Sandbox v1.0**; ke
 
 PACT is also running **feedback sessions with implementers** (e.g. Ecochain, CO2 AI, SAP, Siemens) to pressure-test the IM direction — a useful source of requirements as drafting proceeds.
 
-### Delivery plan (Tech Master Deck "Next Steps")
+### Delivery plan
 
 The deck sets out a delivery plan built around an **addendum to Tech Spec V3** and a reopened working group:
 
@@ -116,7 +116,6 @@ The deck sets out a delivery plan built around an **addendum to Tech Spec V3** a
 | Oct 2026 | Open call for **initial testers** of the draft addendum |
 | Feb 2027 | **Final release** of the addendum |
 
-> **Timeline note / to reconcile:** the Notion epics (Node Discoverability, Automated Credential Exchange) carry an internal target of *end-September 2026*, while the more recent Tech Master Deck (2 June 2026) shows a public path ending in *final release Feb 2027*. These likely reflect "build/feature-complete in the Sandbox" vs. "ratified spec addendum" — worth confirming which dates govern the specification work.
 
 ### Broader tech roadmap (2026-H2 → 2027)
 
