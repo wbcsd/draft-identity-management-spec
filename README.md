@@ -32,4 +32,6 @@ A federated, DNS-like directory of **LEI-identified** entities with hierarchical
 
 ## Contact
 
-Gertjan Schuurmans (schuurmans@wbcsd.org) / pact-support@wbcsd.org.
+Editor
+
+- Gertjan Schuurmans (schuurmans@wbcsd.org) / pact-support@wbcsd.org.
