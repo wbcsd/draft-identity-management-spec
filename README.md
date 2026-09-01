@@ -18,6 +18,8 @@ Suggested reading order is top to bottom — from background, to summary, to str
 | [`PACT-IM-Decisions-Brief.md`](PACT-IM-Decisions-Brief.md) | **2-page decisions brief.** A circulatable summary of the proposed architecture and the key design decisions, with a section on what it means for GLEIF. For the tech team and prospective Working Group members. |
 | [`PACT-IM-Addendum-Outline.md`](PACT-IM-Addendum-Outline.md) | **Annotated addendum structure + decisions log.** The full section-by-section structure of the planned addendum (mirroring the V3 spec conventions), and §12 the consolidated, resolved design-decisions log. The working master for what the spec will contain. |
 | [`PACT-IM-Addendum-Section-3-Identity-Model.md`](PACT-IM-Addendum-Section-3-Identity-Model.md) | **Draft spec text — §3 Identity Model.** First section drafted as normative prose (RFC 2119 keywords): actors, entities/operators/nodes, LEI-in-`companyIds` identifiers, assurance levels, and LEI Level-2 hierarchy. |
+| [`PACT-IM-Addendum-Section-4-Registration.md`](PACT-IM-Addendum-Section-4-Registration.md) | **Draft spec text — §4 Registration.** How entities and nodes join a registry: registration attributes, proof of endpoint control, LEI status handling, assurance and the optional vLEI binding, registration of discovery services, and the update/suspend/deregister lifecycle. |
+| [`PACT-IM-Flow-Discover-Verify-Connect.md`](PACT-IM-Flow-Discover-Verify-Connect.md) | **Flow diagram (non-normative).** End-to-end Mermaid sequence — register, discover, verify, connect, auto-provision OAuth credentials via RFC 7591, exchange — plus a connection-lifecycle state view. |
 
 ## Architecture in one line
 
