@@ -29,7 +29,7 @@ A **federated, DNS-like directory** of organisations identified by their **LEI**
 
 ## What this means for GLEIF
 
-The architecture makes **LEI the backbone of network identity** and **vLEI the mechanism for verifiable trust and delegated authority** — directly the collaboration discussed on 4 and 17 June. Concretely, it depends on: (1) LEI coverage across PACT's ecosystem, where the joint **gap analysis** and a **negotiated low-cost / anchor-absorbed issuance route** are the critical enablers, especially for SMEs and emerging-market suppliers; and (2) maturing **vLEI** tooling and issuers for the verified tier. PACT acts as a design partner and a scalable, real-economy use case; GLEIF provides the identity root of trust PACT explicitly does not want to build itself.
+The architecture makes **LEI the backbone of network identity** and **vLEI the mechanism for verifiable trust and delegated authority** — directly the collaboration discussed on 4 and 17 June. Concretely, it depends on: (1) LEI coverage across PACT's ecosystem, where the joint **gap analysis** and a **negotiated low-cost / anchor-absorbed issuance route** are the critical enablers, especially for SMEs and emerging-market suppliers; and (2) maturing **vLEI** tooling and issuers for the verified tier.
 
 ## What we are asking the Working Group
 
