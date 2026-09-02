@@ -79,7 +79,7 @@ Scope of the addendum (per the Tech Master Deck) is the two coupled topics, desi
 - **D4 — Identifier ≠ verification.** Decide whether holding an identifier implies any verification, or whether verification is a separate, optional layer (see §4.2).
 
 ### 3.4 Organisational hierarchy
-*Content:* how to represent parent/subsidiary and the case where related entities are sometimes mutual suppliers (the Mondelez / Cadbury / Milka problem from the CDP learnings). Distinct identities per operating entity, with optional parent links, rather than one identity per corporate group.
+*Content:* how to represent parent/subsidiary and the case where related entities are sometimes mutual suppliers. Distinct identities per operating entity, with optional parent links, rather than one identity per corporate group.
 
 *Decisions:*
 - **D5 — Hierarchy representation.** Flat identifiers with optional parent references, vs. a structured group/sub-entity model. How much hierarchy does discovery actually need?
@@ -94,7 +94,7 @@ Scope of the addendum (per the Tech Master Deck) is the two coupled topics, desi
 *Content:* the registration request, required attributes (identifier, name, endpoint base URL, contact), and the resulting registry record.
 
 ### 4.2 Identity proofing and assurance
-*Content:* what, if anything, is checked at onboarding ("know your business partner" — raised in the Siemens session). Define assurance levels (e.g. self-asserted vs. third-party-verified vs. cryptographically verifiable).
+*Content:* what, if anything, is checked at onboarding ("know your business partner"). Define assurance levels (e.g. self-asserted vs. third-party-verified vs. cryptographically verifiable).
 
 *Decisions:*
 - **D6 — Proofing model.** Self-service registration (low friction) vs. vetted onboarding vs. tiered assurance. Who vouches? (PACT, a QVI, a solution provider?)
