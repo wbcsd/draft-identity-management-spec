@@ -1,8 +1,14 @@
 # PACT Identity Management Addendum — §4 Registration (Draft)
 
-*Draft v0.1 — 1 September 2026. Draft normative text for the Registration section of the PACT Identity Management addendum to [DATA-EXCHANGE-PROTOCOL] V3. Builds directly on §3 (Identity Model) and reflects the design decisions resolved on 18 June 2026 (see the addendum outline, §12). Editorial conventions follow the base specification: the key words MUST, MUST NOT, SHOULD, SHOULD NOT, MAY, REQUIRED, and OPTIONAL are to be interpreted as in [RFC2119]/[RFC8174] when, and only when, in all capitals.*
+*Draft v0.2 — 16 September 2026. Draft normative text for the Registration section of the PACT Identity Management addendum to [DATA-EXCHANGE-PROTOCOL] V3. Builds on §3 (Identity Model) and reflects the design decisions of 18 June 2026 as amended by the Technology Working Group session of 2 September 2026 (see the addendum outline, §12.1). Editorial conventions follow the base specification: the key words MUST, MUST NOT, SHOULD, SHOULD NOT, MAY, REQUIRED, and OPTIONAL are to be interpreted as in [RFC2119]/[RFC8174] when, and only when, in all capitals.*
 
-> **Status of this section.** Working draft for Technology Working Group review. Two assumptions are taken as settled for the purpose of this draft and are flagged where they bind: (1) the **LEI [ISO17442] is the primary organisational identifier** of the PACT Network; (2) **OAuth 2.0 Dynamic Client Registration [RFC7591]** is the mechanism by which exchange credentials are auto-provisioned. Attribute and URN strings are provisional pending WG ratification.
+> **Status of this section.** Working draft for Technology Working Group review. Attribute names and URN strings are provisional pending WG ratification. **OAuth 2.0 Dynamic Client Registration [RFC7591]** is assumed as the credential-provisioning binding (§6).
+>
+> **Changes in v0.2 (following the 2 September WG session).** Restructured around W1 and W2:
+> - The central index no longer holds Entity or Node records, or delegations keyed by identifier. It is a **PACT Directory of Discovery Services** (§4.2).
+> - Listing in the Directory is **gated on passing the discovery conformance tests**, which include a **domain-ownership check** of the Operator (§4.3). This replaces the Registry-run proof of endpoint control of v0.1 §4.5.2. Base-specification exchange conformance remains an attribute and is not a gate.
+> - Registration of Entities and Nodes is an Operator-internal matter. This addendum specifies only what a Discovery Service publishes about them (§4.5, §5.7).
+> - LEI handling and verifiable credentials move to §3.5 and §3.7. Regional roots and the delegation hierarchy become a non-normative future extension (§4.7).
 
 ---
 
@@ -10,292 +16,156 @@
 
 ### 4.1 Introduction
 
-Registration is the act by which an Entity (§3.2) and the Node(s) representing it become **known to a Registry**, and therefore resolvable (§5) and connectable (§6). A registration record binds three things that are otherwise unrelated:
+Registration in the PACT Network happens at two levels, with different owners and different degrees of specification:
 
-1. an **organisational identity** — one or more identifiers in `companyIds`, primarily an LEI (§3.4);
-2. one or more **network endpoints** — the Nodes through which that Entity exchanges PCF data; and
-3. the **assurance** attached to that binding — how the network came to believe that the identity and the endpoints belong together (§3.5).
+1. **Listing a Discovery Service in the PACT Directory.** An Operator applies to have its Discovery Service listed. Listing is conformance-gated and fully specified here (§4.3, §4.4).
+2. **Registering an Entity and its Nodes with an Operator.** A buyer or supplier becomes discoverable through the Operator that runs its Node(s). How the Operator onboards it is not specified. What the Operator's Discovery Service then publishes about it is (§4.5, §5.7).
 
-Registration is deliberately narrow. It is **not** an authorisation step, **not** a conformance gate, and **not** the point at which any credential is issued:
+Registration at either level is deliberately narrow. It is **not** an authorisation step and **not** the point at which any credential is issued:
 
-- Registration MUST NOT, by itself, grant any party access to any other party's footprints. Access is established only through the connection and authorisation mechanisms of §6.
-- Registration MUST NOT be conditional on the registrant holding a PACT conformance status. A Node's conformance is recorded as an **attribute** of its record (§4.5.3), visible to counterparties, not as an admission criterion.
-- A Registry MUST NOT issue, hold, escrow, or relay the OAuth client credentials used by the base specification's §5.5 token flow. Those credentials are provisioned peer-to-peer between two Nodes (§6, §4.8).
+- Listing and registration MUST NOT, by themselves, grant any party access to any other party's footprints. Access is established only through the connection and authorisation mechanisms of §6.
+- The PACT Directory MUST NOT hold buyer or supplier data: no Entity records, no Node records, and no index of `companyIds` values (W1).
+- The PACT Directory and Discovery Services MUST NOT issue, hold, escrow, or relay OAuth client credentials on behalf of another party. Those credentials are provisioned peer-to-peer between two Nodes (§6).
 
-*Editor's note.* This narrowness is the point. The registry is a **thin index**: identifier → endpoint (or → a delegated discovery service), plus a small set of attributes needed to decide whether to attempt a connection. Everything with commercial or security weight happens between the two Nodes afterwards. This is what keeps PACT out of the credential and data path.
+*Editor's note.* The PACT Directory answers one question: *which Discovery Services exist, and can they be trusted to answer for their customers?* Everything about a specific buyer or supplier stays with the Operator that serves it. This is what keeps PACT out of the credential and data path and addresses the solution-provider concern about being cut out of the relationship with their customers.
 
-### 4.2 Where registration happens
+### 4.2 The PACT Directory
 
-Consistent with the hybrid-root discovery architecture (§5.1), registration occurs at a **Registry**, of which there are three kinds:
+1. PACT MUST operate a single **PACT Directory** listing the Discovery Services of the PACT Network.
+2. For each listed Discovery Service, the Directory MUST hold the attributes of §4.3.2 and nothing about the Entities that Service answers for.
+3. The Directory MUST publish its listing through the read interface defined in §10. Who may read it is an open decision tied to Option B of §5.6.
+4. The Directory MUST NOT replicate LEI reference data, or any other registry's reference data, about Operators beyond the identifiers they declare.
 
-- the **Root Registry** operated for the PACT Network as a whole;
-- a **Regional Registry** — a root operated for a national or sectoral network, tied to a parent root; and
-- a **Solution Provider Directory** — a discovery service operated by a Multi-Party Entity (§3.3) that registers, and answers on behalf of, the Entities it fronts.
+### 4.3 Listing a Discovery Service
 
-The following requirements apply:
+#### 4.3.1 Who may apply
 
-1. An Entity MUST be registered in exactly one **authoritative** Registry per identifier. That Registry is the one whose record the root index resolves to.
-2. A Root Registry MUST hold, for each registered identifier, either (a) the Node metadata directly, or (b) a **delegation** to the Registry that holds it. It MUST NOT hold both for the same identifier.
-3. A Regional Registry or Solution Provider Directory MUST declare a parent Registry, and MUST publish the identifier scope for which it is authoritative.
-4. A Registry MUST NOT replicate LEI reference data beyond what §4.4.2 permits.
+Any Operator that runs a Discovery Service MAY apply for listing. This includes:
 
-Registration of the Registries themselves is defined in §4.7.
+- a [=solution provider=] answering for many customers (Multi-Party Entity, §3.3); and
+- an Entity that runs its own Node(s) and answers only for itself (the *SP-of-one* case, §3.2 requirement 5). An SP-of-one is listed exactly like any other Operator and passes the same tests.
 
-### 4.3 Who may register
+#### 4.3.2 Listing attributes
 
-A registration request is made by a **Registrant**, which is either the Entity itself or an Operator (§3.2) acting on its behalf.
-
-1. A Registry MUST record which party submitted each registration and under what claim of authority.
-2. Where an Operator registers an Entity it does not itself constitute, the Operator MUST assert delegated authority for that Entity. In this version, that assertion MAY be self-declared; where a delegated-role verifiable credential is presented instead, the record is treated as credential-verified for the delegation (§4.6.3).
-3. An Entity MUST be able to take over, correct, or withdraw a registration made on its behalf, upon demonstrating control of its own identifier at an assurance level at least equal to that of the existing record. A Registry MUST provide such a procedure.
-
-*Editor's note.* Requirement 3 is the practical protection against an Operator holding an Entity's network identity hostage — an SP-portability concern raised repeatedly by members. The mechanism (what "demonstrating control" means at each assurance level) is intentionally left to §4.6 and to Registry policy for now.
-
-### 4.4 Registering an Entity
-
-#### 4.4.1 Entity registration attributes
-
-A registration request for an Entity MUST carry at least:
+A Directory listing MUST carry:
 
 | Attribute | Requirement | Notes |
 |---|---|---|
-| `companyIds` | REQUIRED | Array of URNs per §3.4. SHOULD contain an `urn:lei:…` value. |
-| `legalName` | REQUIRED | The Entity's legal name as the registrant asserts it. |
-| `actorType` | REQUIRED | One of the actor types of §3.3. |
-| `contact` | REQUIRED | An operational contact for network and security matters. Not published to anonymous requesters (§8). |
-| `jurisdiction` | OPTIONAL | ISO 3166 country of legal registration; MAY be omitted where derivable from the LEI. |
-| `parentRef` | OPTIONAL | Permitted only for LEI-identified Entities (§3.6). |
+| `serviceId` | REQUIRED | Stable identifier assigned by the Directory. Never reassigned (§4.4.3). |
+| `operator.companyIds` | REQUIRED | Array of URNs per §3.4 identifying the Operator as an Entity. |
+| `operator.name` | REQUIRED | The Operator's legal or trading name. |
+| `domains` | REQUIRED | One or more Internet domains whose control the Operator demonstrated (§4.3.3). |
+| `discoveryEndpoint` | REQUIRED | HTTPS URL of the Discovery Service (§10). MUST be under one of `domains`. |
+| `discoveryConformance` | REQUIRED | Result of the discovery conformance tests: test-suite version and date passed (§4.3.4). |
+| `conformantVersions` | REQUIRED | Base-specification versions for which the Operator's solution holds PACT conformance. MAY be empty (§4.3.5). |
+| `domainVerifiedAt` | REQUIRED | Time the domain challenge last succeeded. |
+| `status` | REQUIRED | `active` or `suspended` (§4.4.2). |
+| `jwksUri` | CONDITIONAL | Required only if the WG adopts request signing (Option B1 of §5.6 or Option C2 of §6.4). MUST be under one of `domains`. |
+| `contact` | REQUIRED | Operational and security contact. MUST NOT be published to other participants. |
 
-A Registry MUST NOT require attributes beyond those listed as REQUIRED here as a condition of registration.
+The Directory MUST NOT require further attributes as a condition of listing.
 
-#### 4.4.2 Handling of the LEI
+#### 4.3.3 Domain ownership of the Operator
 
-Where the registrant supplies an LEI:
+Before a Discovery Service is listed, the PACT Conformance Service MUST verify that the applicant controls every domain in `domains` (W2). The verification is part of the discovery conformance tests (§4.3.4).
 
-1. The Registry MUST verify that the LEI resolves in the Global LEI Index and that its registration status is `ISSUED` before recording the Entity's assurance level as *Registry-verified* (§3.5).
-2. The Registry MUST store the LEI value itself, and MAY cache only the minimum reference data needed to render a human-readable result — legal name, jurisdiction, LEI registration status, and the timestamp of the last check. It MUST NOT replicate the Global LEI Index or present cached reference data as authoritative.
-3. The Registry MUST re-check the LEI registration status periodically. A recommended interval is **not less than once every 30 days**.
-4. Where an LEI transitions out of `ISSUED` (for example to `LAPSED`, `MERGED`, `RETIRED`, or `ANNULLED`), the Registry MUST downgrade the recorded assurance level and reflect the new status (§4.9.2). It MUST NOT continue to present the Entity as *Registry-verified*.
-5. Where an LEI is `MERGED` into a successor, the Registry SHOULD record a pointer to the successor LEI and SHOULD NOT silently delete the record (§4.9.3).
+1. The Conformance Service MUST issue a random token, at least 128 bits, for each domain and confirm it is published under that domain by at least one of:
+   - a DNS `TXT` record at `_pact-challenge.<domain>` whose value is the token; or
+   - an HTTPS resource at `https://<domain>/.well-known/pact-challenge/<token-id>` whose body is the token, served with a valid TLS certificate for `<domain>`.
+2. Tokens MUST be single-use and MUST expire, RECOMMENDED within 7 days of issue.
+3. The Conformance Service MUST record the method used and the time of success, and the Directory MUST expose the latter as `domainVerifiedAt`.
+4. Domain control MUST be re-verified on every change to `domains`, `discoveryEndpoint`, or `jwksUri`, and at every conformance re-test.
 
-Where the registrant supplies no LEI, the Entity is registered at the *Self-asserted* assurance level (§3.5) and MUST NOT declare hierarchy relationships (§3.6, requirement 2). Registration MUST NOT be refused on this basis alone.
+*Editor's note.* This is the v0.1 "proof of endpoint control" moved to the level where the WG placed it. Binding `discoveryEndpoint` (and, where adopted, `jwksUri`) to a verified domain means an attacker cannot list a Discovery Service that impersonates an existing Operator. It does not stop a *listed* Operator from publishing false information about its own customers. That risk is contained by accountability and delisting (§4.4.2), not by cryptography. The `_pact-challenge` label and the `.well-known` suffix need registering or confirming; that is for §10.
 
-*Editor's note.* Requirements 1 and 3 are the whole of PACT's "know your business partner" position: the network **inherits** the KYB performed by the LEI issuer and re-checks that it still holds, rather than performing any verification of its own. Where a Registry operator nonetheless performs manual checks during the transition period, §4.5.2 applies.
+#### 4.3.4 Conformance-gated listing
 
-#### 4.4.3 Identifier collision and duplicate detection
+1. A Discovery Service MUST NOT be listed until its Operator has passed the **discovery conformance tests** run by the PACT Conformance Service (W2).
+2. The discovery conformance tests MUST cover at least: domain ownership (§4.3.3); the discovery query interface and response format (§5.7, §10); correct handling of unknown and non-visible identifiers (§5.8); and, where the Operator declares support for the *Credential-Exchange-capable Node* class, the connection and RFC 7591 interfaces (§6, §10).
+3. A home-built solution that has not passed the discovery conformance tests is not eligible for listing, whatever its technical merit. It becomes eligible once it passes.
+4. The Directory MUST record the test-suite version passed. Where a new test-suite version is released, the Directory MUST NOT delist an Operator solely for not yet having passed it before a transition period announced with the release has ended.
 
-1. A Registry MUST treat `companyIds` as a set. If a submitted identifier value is already present on another Entity record in that Registry, the Registry MUST NOT create a second record; it MUST either reject the request or route it to the takeover procedure of §4.3(3).
-2. A Registry MUST NOT infer that two records are the same Entity from name similarity, endpoint similarity, or shared contact details.
-3. Self-asserted identifiers MUST NOT be assumed globally unique. A Registry MAY namespace them internally, and MUST NOT surface a self-asserted identifier in discovery responses as though it were authoritative.
+*Editor's note.* Requirement 4 depends on parked item P1 (how SPs are notified of registry updates and new-version roll-outs). The transition period is deliberately not fixed here.
 
-### 4.5 Registering a Node
+#### 4.3.5 Exchange conformance as an attribute
 
-#### 4.5.1 Node registration attributes
+1. `conformantVersions` MUST list the base-specification version(s) for which the Operator's solution currently holds PACT conformance, and MUST be empty where it holds none.
+2. The Directory MUST source `conformantVersions` from the PACT Conformance Service and MUST NOT accept it as a self-assertion.
+3. An empty `conformantVersions` MUST NOT prevent listing. Counterparties MAY use it to decide whether to attempt a connection.
 
-Each Node registered against an Entity MUST carry at least:
+### 4.4 Maintaining a listing
 
-| Attribute | Requirement | Notes |
-|---|---|---|
-| `nodeId` | REQUIRED | Stable identifier of the Node within the Registry. |
-| `entityRef` | REQUIRED | The `companyIds` value of the Entity the Node represents (§3.2, requirement 4). |
-| `operatorRef` | REQUIRED | Identifier of the Operator. Equal to `entityRef` where self-operated. |
-| `baseUrl` | REQUIRED | The base-specification `$base-url$` of the host system realising the Node. MUST use `https`. |
-| `actorType` | REQUIRED | Per §3.3; MUST be consistent with the Entity's declared type. |
-| `conformantVersions` | REQUIRED | Array; MAY be empty (§4.5.3). |
-| `visibility` | REQUIRED | The two controls of §4.5.4. |
-| `connectionEndpoint` | REQUIRED for Credential-Exchange-capable Nodes | Where connection requests are received (§6). |
+#### 4.4.1 Update
 
-A Registry MUST NOT store the Node's token endpoint or client registration endpoint as authoritative values. Both are discovered from the Node itself (§4.5.2).
+1. An Operator MUST keep `discoveryEndpoint`, `domains`, `contact`, and (where applicable) `jwksUri` current.
+2. A change to `domains`, `discoveryEndpoint`, or `jwksUri` MUST trigger re-verification (§4.3.3). The changed value MUST NOT be published until re-verification succeeds; the previous value remains in force meanwhile.
+3. The Directory SHOULD run a periodic liveness check against listed Discovery Services and SHOULD expose the result. It MUST NOT delist a Service solely because it is temporarily unreachable.
 
-#### 4.5.2 Endpoint metadata and proof of control
+#### 4.4.2 Suspension
 
-The base specification already requires a host system to publish OAuth 2.0 authorisation server metadata at `$base-url$/.well-known/openid-configuration`. This addendum reuses that document rather than duplicating its contents in the Registry:
+The Directory MUST set a listing to `suspended`, and clients MUST NOT query a suspended Service (§5.4), where:
 
-1. A Node's `token_endpoint` MUST be obtained from that well-known document, not from the Registry record.
-2. A Node that supports automated credential provisioning MUST advertise a `registration_endpoint` in that same document, as defined by [RFC8414]/[RFC7591]. Its presence is the machine-readable signal that the Node implements the *Credential-Exchange-capable Node* conformance class (§9).
-3. A Registry MAY cache these values for display, and MUST mark cached values as non-authoritative.
+- domain control can no longer be demonstrated (§4.3.3);
+- the Operator fails a conformance re-test, subject to §4.3.4 requirement 4; or
+- PACT determines, under a published procedure, that the Service has published materially false information, for example answering for Entities it does not serve.
 
-Before a Node record becomes resolvable to any other participant, the Registry MUST verify that the Registrant controls the declared `baseUrl`. A conforming Registry MUST implement at least one **proof-of-control** challenge, and MUST record which was used and when. RECOMMENDED challenges are:
+A suspension MUST be reflected in the Directory listing without delay. The procedure for determining misbehaviour and for reinstatement is operational and is expected in an annex.
 
-- **Endpoint challenge** — the Registry issues a nonce and requires it to be served from a Registry-specified path under `$base-url$`; or
-- **Signed challenge** — the Registrant returns the nonce signed by a key bound to a verifiable credential presented under §4.6.
+#### 4.4.3 Delisting
 
-A Registry MUST re-verify control at least on every change to `baseUrl`, and SHOULD re-verify periodically thereafter.
+1. An Operator MAY request delisting at any time. Delisting removes the Service from the Directory.
+2. Delisting or suspension MUST NOT be treated as, or relied upon as, a means of revoking exchange credentials. Credentials already provisioned between Nodes remain valid until revoked through the connection lifecycle of §6.7.
+3. The Directory MUST NOT reassign a `serviceId` and SHOULD retain a tombstone sufficient to answer "this Service was listed and has been withdrawn".
+4. Delisting MUST NOT delete the audit record of listing events (§7).
 
-*Editor's note.* Proof of endpoint control is the single most important anti-impersonation control at registration time: without it, the identifier-to-endpoint binding — the only thing the directory actually asserts — is unverified, and an attacker can point a legitimate LEI at an endpoint they own. It is the direct analogue of domain validation in the DNS/PKI world the architecture is modelled on. Whether the well-known nonce path is newly minted or reuses an existing PACT path is for §10.
+### 4.5 Entities and Nodes at a Discovery Service
 
-#### 4.5.3 Conformance as an attribute
+An Operator decides how it onboards the Entities it serves: what it asks for, which checks it runs, and how its customers opt in. This addendum constrains only what the Operator's Discovery Service **publishes** (editorial position E2, §12.2).
 
-1. A Node's `conformantVersions` MUST list the version(s) of the base specification for which the Node currently holds a PACT conformance status, and MUST be empty where it holds none.
-2. A Registry MUST source `conformantVersions` from the PACT Conformance Service and MUST NOT accept the value as a self-assertion by the Registrant.
-3. An empty `conformantVersions` MUST NOT prevent registration, resolution, or the receipt of connection requests. It MAY be used by a counterparty as a basis for declining a connection.
-4. A Registry MAY offer a **provisional demo Node** as an on-ramp for Entities that hold no exchange tooling. Such a Node MUST be marked as provisional in every discovery response and MUST NOT report any conformant version.
+1. A Discovery Service MUST answer only for Entities whose Node(s) its Operator runs, or for itself in the SP-of-one case.
+2. A Discovery Service MUST publish an Entity only where that Entity has opted in to being discoverable (§5.8).
+3. The assurance published for an Entity MUST satisfy §3.5.2: it identifies the attesting Service, reflects checks that Service actually performed or credentials it verified, and carries per-method timestamps.
+4. For each Node, a Discovery Service MUST publish at least `baseUrl` (HTTPS) and, where the Node is Credential-Exchange-capable, `connectionEndpoint`. A Node's `token_endpoint` and `registration_endpoint` MUST NOT be published as authoritative. Both are read from the Node's own `$base-url$/.well-known/openid-configuration` (§5.7).
+5. A Node that supports automated credential provisioning MUST advertise a `registration_endpoint` in that well-known document, as defined by [RFC8414]/[RFC7591]. Its presence is the machine-readable signal that the Node implements the *Credential-Exchange-capable Node* conformance class (§9).
+6. A Discovery Service MAY mark a Node as `provisional` (a demo Node offered as an on-ramp to Entities without exchange tooling). A provisional Node MUST be marked as such in every response.
+7. When an Entity ceases to be served, or withdraws its opt-in, the Discovery Service MUST stop publishing it. As in §4.4.3, this is not credential revocation.
 
-#### 4.5.4 Visibility at registration
+*Editor's note — portability.* v0.1 §4.3(3) made it normative that an Entity can take over or withdraw a registration an Operator made on its behalf, to prevent an Operator holding a customer's network identity hostage. Because onboarding is now Operator-internal, that requirement has no normative place in this version. Two things partly replace it: an Entity may be served by more than one Operator (§3.2 requirement 2), and clients aggregate answers from every Service (§5.4). The WG should decide whether SP portability needs a normative hook, for example a conformance test that an Operator honours a withdrawal request within a fixed time.
 
-Every Node record carries two orthogonal visibility controls, set by the Node owner (§5.3, §8):
+### 4.6 Relationship to credential provisioning
 
-- **Resolvability** — whether a party that already knows the Entity's identifier can resolve it to this Node and submit a connection request. The default MUST be *on for authenticated network members* and *off for anonymous requesters*.
-- **Listability** — whether the Node appears in search or browse results. The default MUST be *off*. A Node owner MAY opt in to *members-only* or *public* listing.
+Listing and registration produce exactly the metadata that automated credential exchange (§6) consumes, and nothing more:
 
-A Registry MUST apply these defaults where the Registrant does not state a preference, and MUST allow the Node owner to change them at any time. Neither control affects §6: a resolvable or listed Node still approves every connection individually.
-
-#### 4.5.5 Example registry record
-
-*Non-normative.* An Entity registered with an LEI, self-operating one Node, credential-exchange capable, default visibility:
-
-```json
-{
-  "entity": {
-    "companyIds": [
-      "urn:lei:5493001KJTIIGC8Y1R12",
-      "urn:pfi:www.example.com:org-id:401765"
-    ],
-    "legalName": "Example Manufacturing B.V.",
-    "actorType": "single-party-entity",
-    "assurance": {
-      "level": "registry-verified",
-      "source": "gleif-lei-index",
-      "leiRegistrationStatus": "ISSUED",
-      "lastCheckedAt": "2026-08-28T04:00:00Z"
-    }
-  },
-  "nodes": [
-    {
-      "nodeId": "urn:pact:node:5493001KJTIIGC8Y1R12:eu-1",
-      "entityRef": "urn:lei:5493001KJTIIGC8Y1R12",
-      "operatorRef": "urn:lei:5493001KJTIIGC8Y1R12",
-      "baseUrl": "https://pact.example.com",
-      "actorType": "single-party-entity",
-      "conformantVersions": ["2.3", "3.0"],
-      "connectionEndpoint": "https://pact.example.com/3/connections",
-      "visibility": { "resolvability": "members", "listability": "none" },
-      "endpointControl": {
-        "method": "endpoint-challenge",
-        "verifiedAt": "2026-08-14T11:07:52Z"
-      }
-    }
-  ]
-}
-```
-
-*Non-normative.* A Solution Provider Directory record for an Entity it fronts — the root index holds a **delegation**, not an endpoint:
-
-```json
-{
-  "entity": {
-    "companyIds": ["urn:lei:894500ABCDEF12345678"],
-    "legalName": "Example Supplier Ltd",
-    "assurance": { "level": "registry-verified", "source": "gleif-lei-index" }
-  },
-  "delegation": {
-    "discoveryService": "urn:lei:213800SPPROVIDER00001",
-    "discoveryEndpoint": "https://directory.sp-example.com/3/discovery",
-    "discoverable": true
-  }
-}
-```
-
-### 4.6 Identity proofing and assurance
-
-#### 4.6.1 Principle
-
-The PACT Network does not proof organisational identity itself. Assurance recorded at registration is **derived** — from the LEI issuance process, or from a verifiable credential issued within the vLEI ecosystem — and is recorded as an attribute of the Entity identity (§3.5), never as a precondition for holding one.
-
-1. A Registry MUST record, for every Entity, the assurance level, the source from which it was derived, and the time it was last confirmed.
-2. A Registry MUST NOT record an assurance level it did not itself derive from a check it performed or a credential it verified.
-3. A Registry MUST make the assurance level and its timestamp available in discovery responses, subject to §4.5.4 visibility.
-
-#### 4.6.2 Interim manual verification
-
-Where a Registry operator performs a manual check of a registrant during the transition period before broad LEI coverage:
-
-1. The result MUST be recorded as a distinct, clearly labelled interim status and MUST NOT be presented as *Registry-verified*.
-2. The interim status MUST carry an expiry and MUST be re-confirmed or downgraded at expiry.
-
-*Editor's note.* This exists only to avoid a hard dependency on LEI coverage (~40–60% of non-financial corporates today) blocking early adopters. It is explicitly a stopgap; the WG should decide whether it belongs in the normative text at all or in an operational annex.
-
-#### 4.6.3 Verifiable credentials (optional path)
-
-An Entity, or an Operator acting for it, MAY bind its registration to a **verifiable LEI (vLEI)** [VLEI-EGF]. This path is OPTIONAL in this version of the addendum.
-
-1. Where a Registry accepts verifiable credentials, it MUST verify the credential's issuance chain to the GLEIF root of trust and MUST verify that the credential is not revoked at the time of the check.
-2. On successful verification, the Entity's assurance level MUST be recorded as *Credential-verified*, together with the credential identifier, issuer, and verification timestamp.
-3. A Registry MUST re-check revocation status at an interval no longer than that used for LEI status (§4.4.2, requirement 3), and MUST downgrade the assurance level where the credential is revoked or expired.
-4. **Entity-level** credentials are in scope for this version. A **delegated-role** credential — by which an Operator proves it is the authorised exchange agent for an Entity — is defined as a named extension and, where presented, MUST be recorded against the delegation asserted under §4.3(2). Natural-person credentials are out of scope.
-5. Where a Node has bound a credential, its public key material MAY be used for the signed proof-of-control challenge of §4.5.2 and for identity verification at connection time (§6.1).
-
-*Editor's note.* The credential presentation and verification mechanics (the vLEI ecosystem's own key-event and credential-chaining infrastructure) are referenced, not restated, here. The addendum should state *what must be true* — chain verified to the GLEIF root, revocation checked, outcome recorded and time-stamped — and defer the *how* to [VLEI-EGF]. Whether generic W3C VC/DID credentials are accepted alongside vLEI is still open.
-
-### 4.7 Registration of Discovery Services
-
-A Registry other than the Root Registry is itself registered, so that queries can be routed to it and its answers trusted.
-
-1. The operator of a Regional Registry or Solution Provider Directory MUST itself be a registered Entity, and SHOULD be *Credential-verified* (§4.6.3).
-2. A discovery service registration MUST declare: the operating Entity's identifier, the discovery endpoint URL, the parent Registry, and the identifier scope for which the service is authoritative.
-3. A parent Registry MUST verify control of the declared discovery endpoint using the mechanism of §4.5.2 before routing any query to it.
-4. A parent Registry MUST be able to suspend a child discovery service, and MUST cease routing queries to a suspended service.
-5. A discovery service MUST NOT answer authoritatively for identifiers outside its declared scope. A Registry receiving such an answer MUST discard it.
-
-*Editor's note.* Requirements 4 and 5 are the containment story for the "rogue discovery service" threat named in §7 — a compromised or misbehaving sub-directory can lie only about the identifiers it was delegated, and can be cut off by its parent.
-
-### 4.8 Relationship to credential provisioning
-
-Registration produces exactly the metadata that automated credential exchange (§6) consumes, and nothing more:
-
-1. The Registry resolves an identifier to a Node's `baseUrl` and `connectionEndpoint`.
-2. The Node's own well-known document supplies the `token_endpoint` and, where supported, the `registration_endpoint` [RFC7591] (§4.5.2).
-3. The two Nodes then establish trust and provision credentials **directly** (§6.1, §6.2). The Registry is not a party to that exchange and MUST NOT be required to be online for an established connection to continue functioning.
+1. The PACT Directory lists Discovery Services. A Discovery Service resolves a `companyIds` value to Node `baseUrl` and `connectionEndpoint` (§5).
+2. The Node's own well-known document supplies `token_endpoint` and, where supported, `registration_endpoint` (§4.5).
+3. The two Nodes then establish trust and provision credentials **directly** (§6). Neither the Directory nor any Discovery Service is a party to that exchange. An established connection MUST NOT depend on the Directory or any Discovery Service being online.
 4. The credentials so provisioned are the `client_id` and `client_secret` that the base specification's §5.5 client-credentials flow already consumes. This addendum introduces no change to that token flow.
 
-### 4.9 Maintaining a registration
+### 4.7 Future extension: regional directories
 
-#### 4.9.1 Update
+*Non-normative.* The 18 June design (D9) allowed regional roots tied to a parent root, in the manner of DNS. This version has a single PACT Directory. The design keeps room for a later extension in which a **regional directory** (for example for a national network) lists its own Discovery Services, declares the PACT Directory as its parent, can be suspended by it, and is itself listed so that clients can follow it. The containment rules of §4.4.2 would apply to a regional directory as a whole. Nothing in this version depends on that extension.
 
-1. A Registrant MUST keep `baseUrl`, `connectionEndpoint`, and `contact` current.
-2. A change to `baseUrl` MUST trigger re-verification of endpoint control (§4.5.2), and the Node MUST NOT be resolvable at the new URL until that verification succeeds.
-3. A Registry SHOULD perform a liveness check against registered Nodes and SHOULD expose the outcome as an attribute; it MUST NOT remove a record solely because a Node is temporarily unreachable.
+### 4.8 Error conditions
 
-#### 4.9.2 Suspension and downgrade
-
-A Registry MUST suspend a Node record, or downgrade an Entity's assurance level, where:
-
-- the underlying LEI leaves `ISSUED` status (§4.4.2, requirement 4) — assurance downgraded to *Self-asserted*;
-- a bound verifiable credential is revoked or expires (§4.6.3, requirement 3) — assurance downgraded to the next level still supported by evidence;
-- endpoint control can no longer be demonstrated (§4.5.2) — the Node record suspended from resolution; or
-- the parent Registry suspends the discovery service holding the record (§4.7, requirement 4).
-
-A suspended or downgraded record MUST reflect the change in every discovery response. A Registry MUST NOT present stale assurance.
-
-#### 4.9.3 Deregistration
-
-1. A Node owner MAY deregister a Node at any time. Deregistration removes the Node from resolution and listing.
-2. Deregistration MUST NOT be treated as, or relied upon as, a means of revoking exchange credentials. Credentials already provisioned remain valid at the counterparty Node until revoked through the connection lifecycle of §6.3. A Registry SHOULD warn a deregistering owner of any outstanding connections it is aware of.
-3. A Registry MUST NOT reassign a `nodeId` or an identifier binding that has been deregistered. It SHOULD retain a tombstone record sufficient to prevent reuse and to answer "this identifier was registered and has been withdrawn".
-4. Deregistration MUST NOT delete the audit record of the registration events themselves (§7).
-
-### 4.10 Error conditions
-
-*Provisional — the full error catalogue and its alignment with the base specification's `Error` enum belong to §10.* A conforming Registry is expected to distinguish at least:
+*Provisional — the full error catalogue and its alignment with the base specification's error response belong to §10.* The listing process is expected to distinguish at least:
 
 | Condition | Meaning |
 |---|---|
-| `IdentifierNotResolvable` | A supplied LEI does not resolve, or is not in `ISSUED` status. |
-| `IdentifierAlreadyRegistered` | The identifier is bound to an existing record; use the takeover procedure (§4.3). |
-| `EndpointControlNotProven` | The proof-of-control challenge (§4.5.2) was not completed. |
-| `CredentialVerificationFailed` | A presented credential could not be chained to the root of trust, or is revoked. |
-| `OutOfScopeForRegistry` | The identifier lies outside this Registry's declared authoritative scope (§4.7). |
-| `AuthorityNotDemonstrated` | The Registrant did not demonstrate authority to act for the Entity (§4.3). |
+| `DomainControlNotProven` | The domain challenge (§4.3.3) was not completed for one or more domains. |
+| `EndpointNotUnderVerifiedDomain` | `discoveryEndpoint` or `jwksUri` is not under a verified domain. |
+| `DiscoveryConformanceNotPassed` | The applicant has not passed the current discovery conformance tests (§4.3.4). |
+| `OperatorAlreadyListed` | A listing with an overlapping `operator.companyIds` value already exists. |
 
 ---
 
 ## Open items carried from this section
 
-- Whether the interim manual-verification status (§4.6.2) belongs in normative text or an operational annex.
-- The concrete proof-of-control challenge: newly minted well-known path vs. reuse of an existing PACT path (§4.5.2) — to be fixed in §10.
-- Whether generic W3C VC/DID credentials are accepted alongside vLEI (§4.6.3).
-- Whether registration and lifecycle events MUST be audit-logged; the base specification leaves logging out of scope (§5.3(d)). Carried to §7.
-- Re-check intervals (§4.4.2, §4.6.3) are stated as recommendations; the WG should decide whether any are normative.
+- SP portability: whether an Entity's right to withdraw from, or move away from, an Operator needs a normative hook (§4.5 editor's note).
+- Transition period for new discovery test-suite versions, tied to parked item P1 on notification and versioning (§4.3.4).
+- Who may read the PACT Directory listing, tied to Option B (§5.6) and parked item P3.
+- The misbehaviour and reinstatement procedure for suspension (§4.4.2): operational annex.
+- Registration of the `_pact-challenge` DNS label and `.well-known/pact-challenge` suffix (§4.3.3), to be fixed in §10.
+- Whether listing and lifecycle events MUST be audit-logged. The base specification leaves logging out of scope (§5.3(d)). Carried to §7.
 - The "invite a non-member supplier to join" journey remains informative/product, not normative.
 
 ---
@@ -306,6 +176,5 @@ A suspended or downgraded record MUST reflect the change in every discovery resp
 - [RFC2119], [RFC8174] — requirement-level keywords.
 - [RFC7591] — OAuth 2.0 Dynamic Client Registration Protocol.
 - [RFC8414] — OAuth 2.0 Authorization Server Metadata.
+- [RFC8615] — Well-Known Uniform Resource Identifiers.
 - [RFC8141] — Uniform Resource Names (URNs).
-- [ISO17442] — Legal Entity Identifier (LEI).
-- [VLEI-EGF] — vLEI Ecosystem Governance Framework, GLEIF.
