@@ -1,6 +1,6 @@
 # PACT Identity Management — Addendum Structure (Working Outline)
 
-*Draft v0.2 — 18 June 2026. A structural sketch for the Identity Management addendum to the PACT Technical Specifications for PCF Data Exchange (V3). For brainstorming in this project; intended to later become a spec in `wbcsd/data-exchange-protocol`. **v0.2: design decisions resolved via review session — see §12.***
+*Draft v0.2 — 18 June 2026. A structural sketch for the Identity Management addendum to the PACT Technical Specifications for PCF Data Exchange (V3). For brainstorming in this project; intended to later become a spec in `wbcsd/data-exchange-protocol`. **v0.2: design decisions resolved via review session — see §12.** **v0.3 (16 September 2026): decisions of the 2 September WG session and the editorial positions of the 16 September drafts added in §12.1–§12.3; superseded rows marked.***
 
 ---
 
@@ -210,15 +210,15 @@ Resolved in a design review on 18 June 2026 (Gertjan + Claude), grounded in the 
 | **Ambition** | Integrity bar for V1 | **(a) low-friction directory now → (c) tiered/verified soon.** Assurance is an *attribute* of an identity, never a precondition for having one. |
 | **D1** | One addendum vs. two | **One addendum** covering both topics on one shared identity model. |
 | **D2** | Node vs. host system | **Node** = addressable PACT participant endpoint in the directory, realised by a base-spec *host system*; an **operator** may run many nodes; an **SP-node** also exposes discovery for many fronted entities. "Verified" is an attribute of the entity, not a node type. |
-| **D3** | Identifier scheme | **LEI is the recommended canonical identifier, carried inside the existing `companyIds` URN array** (which stays open/multi-value, DUNS/DID allowed). No new PACT-specific identifier. LEI *recommended, not required* in V1 (coverage ~40–60% of non-financial corporates; cost being negotiated down with GLEIF). |
+| **D3** | Identifier scheme | ⚠ **Superseded by W3 (2 Sept):** LEI is an optional layer, not the recommended canonical identifier; `companyIds` unchanged. *Original:* **LEI is the recommended canonical identifier, carried inside the existing `companyIds` URN array** (which stays open/multi-value, DUNS/DID allowed). No new PACT-specific identifier. LEI *recommended, not required* in V1 (coverage ~40–60% of non-financial corporates; cost being negotiated down with GLEIF). |
 | **D4** | Identifier ≠ verification | Holding an identifier implies **no** verification; verification is the separate, optional tier (D8). |
 | **D5** | Org hierarchy | **(b) per operating-entity identity; hierarchy referenced, not owned** — parent/ultimate-parent resolved from **LEI Level-2 data**. **No hierarchy links until an entity has an LEI.** Mutual supplier/buyer relationships are a property of the connection, not of identity. |
-| **D6/D7** | Proofing & conformance gate | **Registration ≠ conformance gate.** Conformance is a visible **attribute, exposed as conformant-version(s)**. Exchange needs a conformant host on one side; demo node is the no-tooling on-ramp. Proofing **inherited from LEI/vLEI KYB**, never built by PACT; manual staff KYB is an interim stopgap. |
-| **D8** | vLEI / VC adoption | **vLEI is in-scope-optional in the V1 document** as the verified tier; not mandated. |
-| **D9** | Centralisation boundary | **(c) hybrid root** — thin central index keyed by identifier (LEI); each record either carries the endpoint directly (self-hosted) or delegates to an SP discovery endpoint (umbrella). PACT never replicates LEI reference data. **Regional roots allowed; every root can be tied to a parent** (DNS-like root hierarchy). |
+| **D6/D7** | Proofing & conformance gate | ⚠ **Amended by W2 (2 Sept):** listing of an Operator's Discovery Service *is* gated on discovery conformance incl. domain ownership; exchange conformance stays an attribute; fronted parties are not gated. *Original:* **Registration ≠ conformance gate.** Conformance is a visible **attribute, exposed as conformant-version(s)**. Exchange needs a conformant host on one side; demo node is the no-tooling on-ramp. Proofing **inherited from LEI/vLEI KYB**, never built by PACT; manual staff KYB is an interim stopgap. |
+| **D8** | vLEI / VC adoption | ⚠ **Amended by W3 (2 Sept):** generic VC architecture with vLEI as one profile. *Original:* **vLEI is in-scope-optional in the V1 document** as the verified tier; not mandated. |
+| **D9** | Centralisation boundary | ⚠ **Superseded by W1 (2 Sept):** central directory of SP discovery endpoints, no identifier index; regional roots → future extension (E7). *Original:* **(c) hybrid root** — thin central index keyed by identifier (LEI); each record either carries the endpoint directly (self-hosted) or delegates to an SP discovery endpoint (umbrella). PACT never replicates LEI reference data. **Regional roots allowed; every root can be tied to a parent** (DNS-like root hierarchy). |
 | **D10** | Discovery technology | Spec stays **implementation-agnostic** (reference implementation may use a graph DB, e.g. Neo4j). |
 | **D11** | SP-node concept | **Standardised** — one SP-node fronts many customers via a per-customer discoverable opt-in; no central sync of customer databases. |
-| **D12** | Visibility model | **Two orthogonal controls.** *Resolvability* (know-the-LEI → resolve endpoint + request connection): **default ON for authenticated members**, off for anonymous. *Listability* (appear in search/browse): **default OFF, opt-in**, tiers members-only vs. public. **Connection always requires owner approval** — visibility ≠ access. |
+| **D12** | Visibility model | ⚠ **Amended by E4:** discoverability is explicit opt-in per Entity; lookup by identifier only, no search/listability in v1. *Original:* **Two orthogonal controls.** *Resolvability* (know-the-LEI → resolve endpoint + request connection): **default ON for authenticated members**, off for anonymous. *Listability* (appear in search/browse): **default OFF, opt-in**, tiers members-only vs. public. **Connection always requires owner approval** — visibility ≠ access. |
 | **D13** | Credential mechanism / auth | **(b) vLEI for identity/trust establishment, OAuth 2.0 for runtime API auth** (§5.5 unchanged). Credential exchange is **peer-to-peer after discovery** (PACT never in the credential/data path). Abstract connection/credential lifecycle is normative; **RFC 7591 (OAuth 2.0 Dynamic Client Registration) is the RECOMMENDED binding**; vLEI-native / mTLS bindings left open. **Rotate** and **revoke** defined. Approval manual in V1, policy-based auto-approval later. |
 | **vLEI granularity** | Verified-tier credential scope | **(a) entity-level for V1**; **(b) entity + delegated role** as the named extension (for SP-node delegated authority); **person-level out of scope** (no natural-person data in PCF exchange). |
 | **D14** | Conformance granularity | **(a) separable capability classes** — *Discoverable Node*, *Discovery Service Provider*, *Credential-Exchange-capable Node* — with verification as a cross-cutting attribute. |
@@ -226,9 +226,52 @@ Resolved in a design review on 18 June 2026 (Gertjan + Claude), grounded in the 
 
 **Still open / deferred:** policy-based auto-approval rules (post-V1); the "invite a non-member supplier to join" flow (treat as informative/product, not normative); precise schema of the discovery API methods; whether IM normatively *requires* audit logging (§5.3 leaves logging out of scope). 
 
+### 12.1 Decisions — Technology Working Group, 2 September 2026
+
+Recorded from the session recap circulated on 4 September 2026. These take precedence over the 18 June positions above where they conflict.
+
+| # | Decision | Resolution | Effect on §12 |
+|---|---|---|---|
+| **W1** | Directory scope | PACT runs a **central directory of solution-provider discovery endpoints**. Buyer/supplier data is **not** held centrally; it stays with each SP. | Supersedes D9 |
+| **W2** | Operator identity & conformance | SP identity verified via **domain ownership**, folded into an **expanded PACT conformance test** covering discoverability endpoints. Non-conformant home-built solutions not eligible for the registry as-is. | Amends D6/D7 |
+| **W3** | LEI / GLEIF | **Optional layer on a generic verifiable-credentials architecture**; not mandatory for v1; ready to activate as trust/fraud stakes rise. | Supersedes D3; amends D8 |
+| **W4** | Party assurance | **Email/domain ownership is sufficient** identity assurance for buyers/suppliers for now, where both parties agree. | Extends Ambition, D4 |
+
+**Parked on 2 September:**
+- **P1** — How SPs/parties are notified of registry updates and new-version roll-outs (versioning approach TBD).
+- **P2** — Whether an invoice-based mechanism (VAT / Chamber-of-Commerce number as PACT identifier) is practical; test with a real enterprise supply chain.
+- **P3** — Whether registry access is restricted to conformant SPs or public.
+
+### 12.2 Editorial positions in the 16 September 2026 drafts
+
+Taken while drafting §3–§6 and §10 to implement W1–W4. **Not yet WG decisions**, so each needs confirmation.
+
+| # | Position | Where |
+|---|---|---|
+| **E1** | Assurance ladder extended and ordered: *self-asserted < email-verified < domain-verified < registry-verified (LEI) < credential-verified*. Email→registry levels are cumulative, so *registry-verified* requires a verified domain as well as an `ISSUED` LEI. | §3.5.1 |
+| **E2** | Operator onboarding of its own customers is Operator-internal; the addendum specifies only what a Discovery Service publishes. Consequence: the SP-portability/takeover requirement (v0.1 §4.3(3)) loses its normative place and is an open item. | §4.5 |
+| **E3** | A self-hosted Entity is listed as an **SP of one**, with the same tests; no special case. | §3.2, §4.3.1 |
+| **E4** | Discovery is keyed on a single `companyIds` URN; no name search in v1; discoverability is explicit **opt-in**; unknown and non-visible identifiers return the same `404`. | §5.4, §5.8 |
+| **E5** | Party assurance (email/domain/LEI) is **attested by the party's own Operator** and published with evidence, timestamps and `attestedBy`. | §3.5.2, §5.7 |
+| **E6** | A Node that sends connection requests must be served by a listed Operator. | §6.2 |
+| **E7** | Regional directories become a non-normative future extension. | §4.7 |
+| **E8** | The Directory listing (which SPs exist, where their Discovery Services are) is publicly readable under every option. | §5.6, §10.2 |
+
+### 12.3 Open decisions for the Working Group (drafted side by side)
+
+| # | Question | Options | Where |
+|---|---|---|---|
+| **A** | Who performs the discovery fan-out? | **A1** requester queries every listed Discovery Service · **A2** Directory brokers the query and retains nothing | §5.5 |
+| **B** | Who may query a Discovery Service? | **B1** listed Operators only, HTTP Message Signatures with key at listed `jwksUri` · **B2** public, minimal answer, rate-limited | §5.6 (settles most of P3) |
+| **C** | How is a connection request authenticated and the decision delivered? | **C1** decision + initial access token sent only to the Requester's endpoint as published by its Discovery Service · **C2** signed request, Requester polls | §6.4 |
+
+Every combination costs an SP three new PACT-specific methods (§10.1). B and C are most coherent when decided together (B2+C1: no keys; B1+C2: one key pair per SP).
+
 ### One-line architecture summary
 
-A federated, DNS-like directory of **LEI-identified** entities with hierarchical (global/regional/SP) roots; discovery is opt-in and privacy-controlled; once two nodes find each other they establish trust **peer-to-peer**, verifying identity via **vLEI** (optional) and auto-provisioning the existing **OAuth** exchange credentials via **RFC 7591** — leaving the base-spec data model and token flow untouched.
+*As of 16 September 2026:* a **central PACT directory of conformance-verified solution-provider discovery endpoints** (domain ownership as Operator identity, no central buyer/supplier data); parties are discovered by `companyIds` through their own provider, with **email/domain assurance** attested by that provider and **LEI/vLEI as optional stronger layers**; once found, nodes establish trust **peer-to-peer** and auto-provision the existing **OAuth** exchange credentials via **RFC 7591** — leaving the base-spec data model and token flow untouched.
+
+*Superseded (18 June):* A federated, DNS-like directory of **LEI-identified** entities with hierarchical (global/regional/SP) roots; discovery is opt-in and privacy-controlled; once two nodes find each other they establish trust **peer-to-peer**, verifying identity via **vLEI** (optional) and auto-provisioning the existing **OAuth** exchange credentials via **RFC 7591** — leaving the base-spec data model and token flow untouched.
 
 ---
 
@@ -239,6 +282,8 @@ A federated, DNS-like directory of **LEI-identified** entities with hierarchical
 ---
 
 ## Suggested drafting order
+
+*Status 16 September 2026: §3 (v0.2), §4 (v0.2), §5 (v0.1), §6 (v0.1, first pass) and §10 (v0.1) drafted as separate `PACT-IM-Addendum-Section-*.md` files.*
 
 1. **§3 Identity Model** (and resolve D3, D5) — the shared foundation.
 2. **§6 Automated Credential Exchange** — fills the clearest, best-defined §5.3 gap.
