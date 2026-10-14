@@ -16,21 +16,23 @@ Suggested reading order is top to bottom — from background, to summary, to str
 | File | Role |
 |------|------|
 | [`PACT-IM-Decisions-Brief.md`](PACT-IM-Decisions-Brief.md) | **2-page decisions brief.** A circulatable summary of the proposed architecture and the key design decisions, with a section on what it means for GLEIF. For the tech team and prospective Working Group members. |
-| [`PACT-IM-Addendum-Outline.md`](PACT-IM-Addendum-Outline.md) | **Annotated addendum structure + decisions log.** The full section-by-section structure of the planned addendum (mirroring the V3 spec conventions), and §12 the consolidated, resolved design-decisions log. The working master for what the spec will contain. |
-| [`PACT-IM-Addendum-Section-3-Identity-Model.md`](PACT-IM-Addendum-Section-3-Identity-Model.md) | **Draft spec text — §3 Identity Model.** First section drafted as normative prose (RFC 2119 keywords): actors, entities/operators/nodes, LEI-in-`companyIds` identifiers, assurance levels, and LEI Level-2 hierarchy. |
-| [`PACT-IM-Addendum-Section-4-Registration.md`](PACT-IM-Addendum-Section-4-Registration.md) | **Draft spec text — §4 Registration.** How entities and nodes join a registry: registration attributes, proof of endpoint control, LEI status handling, assurance and the optional vLEI binding, registration of discovery services, and the update/suspend/deregister lifecycle. |
-| [`PACT-IM-Flow-Discover-Verify-Connect.md`](PACT-IM-Flow-Discover-Verify-Connect.md) | **Flow diagram (non-normative).** End-to-end Mermaid sequence — register, discover, verify, connect, auto-provision OAuth credentials via RFC 7591, exchange — plus a connection-lifecycle state view. |
+| [`PACT-IM-Addendum-Outline.md`](PACT-IM-Addendum-Outline.md) | **Annotated addendum structure + decisions log.** The full section-by-section structure of the planned addendum (mirroring the V3 spec conventions), and §12 the consolidated design-decisions log — including the 2 September 2026 WG decisions (§12.1), editorial positions awaiting confirmation (§12.2), and open options A–C (§12.3). The working master for what the spec will contain. |
+| [`PACT-IM-Addendum-Section-3-Identity-Model.md`](PACT-IM-Addendum-Section-3-Identity-Model.md) | **Draft spec text — §3 Identity Model (v0.2).** Normative prose (RFC 2119 keywords): entities, operators, nodes and discovery services; `companyIds` identifiers with LEI optional; the extended assurance ladder (self-asserted → email → domain → LEI → verifiable credential) attested by each party's own provider; LEI Level-2 hierarchy; and the identity-verification options side by side. |
+| [`PACT-IM-Addendum-Section-4-Registration.md`](PACT-IM-Addendum-Section-4-Registration.md) | **Draft spec text — §4 Registration (v0.2).** The PACT Directory of discovery services: conformance-gated listing with domain-ownership verification, listing attributes, suspension and delisting; and what a discovery service must publish about the entities and nodes it fronts. |
+| [`PACT-IM-Addendum-Section-5-Discovery.md`](PACT-IM-Addendum-Section-5-Discovery.md) | **Draft spec text — §5 Node Discoverability (v0.1).** Directory-vs-DNS rationale, resolution procedure, discovery answer and visibility, with open decisions **A** (fan-out) and **B** (who may query) set out side by side. |
+| [`PACT-IM-Addendum-Section-6-Credential-Exchange.md`](PACT-IM-Addendum-Section-6-Credential-Exchange.md) | **Draft spec text — §6 Automated Credential Exchange (v0.1, first pass).** Connection request, approval and policy, RFC 7591/7592 provisioning, rotation, suspension and revocation, with open decision **C** (request authentication) side by side. |
+| [`PACT-IM-Addendum-Section-10-API.md`](PACT-IM-Addendum-Section-10-API.md) | **Draft API — §10 (v0.1).** Draft endpoints written for SP implementers, a method count against the "handful of new API methods" guardrail, error codes, an inline OpenAPI 3.1 fragment, and an implementation checklist for solution providers. |
+| [`PACT-IM-Flow-Discover-Verify-Connect.md`](PACT-IM-Flow-Discover-Verify-Connect.md) | **Flow diagram (non-normative, v0.2).** End-to-end Mermaid sequence — SP listing, supplier onboarding, discovery, assurance check, connect, auto-provision OAuth credentials via RFC 7591, exchange — showing options A and C as alternatives, plus a connection-lifecycle state view. |
 
 ## Architecture in one line
 
-A federated, DNS-like directory of **LEI-identified** entities with hierarchical (global / regional / solution-provider) roots; discovery is opt-in and privacy-controlled; once two nodes find each other they establish trust **peer-to-peer**, verifying identity via **vLEI** (optional) and auto-provisioning the existing **OAuth** exchange credentials via **RFC 7591** — leaving the base-spec data model and token flow untouched.
+A central PACT directory of **conformance-verified solution-provider discovery endpoints** (no central buyer/supplier data); parties are discovered by `companyIds` through their own provider, with **email/domain assurance** attested by that provider and **LEI/vLEI as optional stronger layers**; once found, nodes establish trust **peer-to-peer** and auto-provision the existing **OAuth** exchange credentials via **RFC 7591** — leaving the base-spec data model and token flow untouched. *(Updated after the 2 September 2026 Working Group session; see the outline §12.1.)*
 
 ## Related resources
 
 - Base specification: <https://github.com/wbcsd/data-exchange-protocol> · published at <https://docs.carbon-transparency.org/tr/data-exchange-protocol/latest/>
 - PACT Network Services platform (reference implementation): <https://github.com/wbcsd/pact-directory>
 - PACT: <https://www.carbon-transparency.org>
-- GLEIF LEI/vLEI: <https://www.gleif.org>
 
 ## Contact
 
