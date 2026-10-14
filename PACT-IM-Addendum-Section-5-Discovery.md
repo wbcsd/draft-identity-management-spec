@@ -213,3 +213,18 @@ A positive discovery answer describes one Entity and the Node(s) through which i
 - [RFC9110] — HTTP Semantics.
 - [RFC9111] — HTTP Caching.
 - [RFC9421] — HTTP Message Signatures.
+
+
+```mermaid
+sequenceDiagram
+    participant BSP as Buyer's solution provider
+    participant DIR as PACT directory (endpoints only)
+    participant SSP as Supplier's solution provider
+    SSP->>DIR: 1. Register discovery endpoint (domain-verified)
+    BSP->>DIR: 2. Look up solution provider endpoints
+    BSP->>SSP: 3. Discover supplier node (fan-out to opted-in nodes)
+    BSP->>SSP: 4. Request connection
+    SSP-->>BSP: 5. Approve, credentials issued (RFC 7591)
+    BSP->>SSP: 6. Exchange PCFs over the V3 API
+    Note over BSP,SSP: PACT is never in the credential or data path
+```
