@@ -257,19 +257,34 @@ Taken while drafting §3–§6 and §10 to implement W1–W4. **Not yet WG decis
 | **E7** | Regional directories become a non-normative future extension. | §4.7 |
 | **E8** | The Directory listing (which SPs exist, where their Discovery Services are) is publicly readable under every option. | §5.6, §10.2 |
 
+### 12.4 Decisions — Technology Working Group, 30 September 2026
+
+Confirmed in session, broadcast to all solution providers on 5 October with a two-week objection window (closing about 19 October).
+
+| # | Decision | Resolution | Effect |
+|---|---|---|---|
+| **W5** | Discovery fan-out | **PACT operates a central discovery service.** An identifier is submitted once and fanned out to the discovery endpoints of registered providers; a match returns the partner's node. | Settles open decision A; A1 (client-side fan-out) is retired |
+| **W6** | Who may query | **Private.** Only registered solution providers may query. Easier to open later than to close, and it answers the exposure concern. | Settles open decision B; B2 (public) is retired, and parked item P3 with it |
+| **W7** | Discoverability | **Opt-in, held and managed by the provider** for each customer. | Confirms E4 |
+| **W8** | Vouching | By registering its discovery endpoint, a provider **vouches** for its opted-in customers. | Amends E5: vouching is the baseline, published assurance becomes optional |
+| **W9** | Provider exit | Existing connections may remain **at the departing provider's discretion**; no new connections through discovery. | Closes the §4.5 open item in part; portability beyond this is still unaddressed |
+| **W10** | Version changes | Notification of registry and interface version changes to be added to the spec. | New §5.9 (policy); mechanism deferred to §10 and operations |
+
+**Still open after 30 September:** how a provider authenticates to the discovery service (§5.5, open decision 1); how a provider's endpoint authenticates the service and whether direct provider-to-provider queries are allowed as a fallback (§5.6, open decision 2); how a connection request is authenticated (§6.4, option C); and **which identifier schemes are accepted** (§3.4.1) — open pending the Taiwan UBN proof of concept on **28 October**, and explicitly *not* covered by the 19 October objection window.
+
 ### 12.3 Open decisions for the Working Group (drafted side by side)
 
 | # | Question | Options | Where |
 |---|---|---|---|
-| **A** | Who performs the discovery fan-out? | **A1** requester queries every listed Discovery Service · **A2** Directory brokers the query and retains nothing | §5.5 |
-| **B** | Who may query a Discovery Service? | **B1** listed Operators only, HTTP Message Signatures with key at listed `jwksUri` · **B2** public, minimal answer, rate-limited | §5.6 (settles most of P3) |
+| ~~**A**~~ | Who performs the discovery fan-out? | **Decided 30 Sept (W5): A2** — PACT operates the central service and retains nothing | §5.3–§5.4 |
+| ~~**B**~~ | Who may query? | **Decided 30 Sept (W6): private** — registered Solution Providers only. *How* they authenticate is now open decision 1 (§5.5) | §5.5 |
 | **C** | How is a connection request authenticated and the decision delivered? | **C1** decision + initial access token sent only to the Requester's endpoint as published by its Discovery Service · **C2** signed request, Requester polls | §6.4 |
 
 Every combination costs an SP three new PACT-specific methods (§10.1). B and C are most coherent when decided together (B2+C1: no keys; B1+C2: one key pair per SP).
 
 ### One-line architecture summary
 
-*As of 16 September 2026:* a **central PACT directory of conformance-verified solution-provider discovery endpoints** (domain ownership as Operator identity, no central buyer/supplier data); parties are discovered by `companyIds` through their own provider, with **email/domain assurance** attested by that provider and **LEI/vLEI as optional stronger layers**; once found, nodes establish trust **peer-to-peer** and auto-provision the existing **OAuth** exchange credentials via **RFC 7591** — leaving the base-spec data model and token flow untouched.
+*As of 14 October 2026:* a **central PACT discovery service over a registry of conformance-verified solution-provider discovery endpoints**, private to registered providers, performing the fan-out on their behalf (domain ownership as Operator identity, no central buyer/supplier data); parties are discovered by `companyIds` through their own provider, with **email/domain assurance** attested by that provider and **LEI/vLEI as optional stronger layers**; once found, nodes establish trust **peer-to-peer** and auto-provision the existing **OAuth** exchange credentials via **RFC 7591** — leaving the base-spec data model and token flow untouched.
 
 *Superseded (18 June):* A federated, DNS-like directory of **LEI-identified** entities with hierarchical (global/regional/SP) roots; discovery is opt-in and privacy-controlled; once two nodes find each other they establish trust **peer-to-peer**, verifying identity via **vLEI** (optional) and auto-provisioning the existing **OAuth** exchange credentials via **RFC 7591** — leaving the base-spec data model and token flow untouched.
 
