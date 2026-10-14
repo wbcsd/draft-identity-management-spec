@@ -2,7 +2,7 @@
 
 *Draft v0.1 — 16 September 2026. First pass at normative text for the Automated Credential Exchange section of the PACT Identity Management addendum to [DATA-EXCHANGE-PROTOCOL] V3. Builds on §3 (Identity Model), §4 (Registration) and §5 (Node Discoverability). Reflects decision D13 of 18 June 2026 (peer-to-peer after discovery; RFC 7591 as the RECOMMENDED binding) and the 2 September 2026 WG decisions (see the addendum outline, §12.1). Editorial conventions follow the base specification: the key words MUST, MUST NOT, SHOULD, SHOULD NOT, MAY, REQUIRED, and OPTIONAL are to be interpreted as in [RFC2119]/[RFC8174] when, and only when, in all capitals.*
 
-> **Status of this section.** First pass for Technology Working Group discussion. **One design decision is deliberately left open and presented side by side:** how a target Node knows a connection request really comes from the party it names, and how the approval reaches that party (Option C, §6.4). Parameter names are provisional.
+> **Status of this section.** First pass for Technology Working Group discussion. Discovery is now the central PACT service (§5), so a Target resolves a Requester through that service rather than by calling another provider directly. **One design decision is deliberately left open and presented side by side:** how a target Node knows a connection request really comes from the party it names, and how the approval reaches that party (Option C, §6.4). Parameter names are provisional.
 
 ---
 
@@ -55,7 +55,7 @@ A connection request arrives before any credentials exist, so it cannot be authe
 
 The request itself is unsigned. Authenticity comes from where the approval is sent.
 
-- C1-1. Before approving, the Target MUST resolve `requester.companyIds` through the Discovery Service named in `requester.serviceId` (§5.4, §10.3), and MUST confirm that the answer lists `requester.nodeId` with a `connectionEndpoint`. Otherwise it MUST reject the request with `RequesterNotResolvable`.
+- C1-1. Before approving, the Target MUST resolve `requester.companyIds` through the PACT Discovery Service (§5.4, §10.2.2), and MUST confirm that an answer vouched by `requester.serviceId` lists `requester.nodeId` with a `connectionEndpoint`. Otherwise it MUST reject the request with `RequesterNotResolvable`.
 - C1-2. On a decision, the Target MUST send `POST {Requester connectionEndpoint}/{connectionId}/decision` (§10.4), using the `connectionEndpoint` obtained in C1-1 and never an endpoint supplied in the request. On approval, the body carries the initial access token (§6.6).
 - C1-3. The Requester MUST reject, with `404`, a decision for a `connectionId` it did not itself create. It SHOULD log such events as a possible impersonation attempt.
 - C1-4. The Requester MUST NOT use any endpoint contained in a decision message. It reads the Target's `registration_endpoint` from the Target's own well-known document (§6.2).
@@ -81,8 +81,8 @@ The request itself is unsigned. Authenticity comes from where the approval is se
 | **Requester must be discoverable** | Yes. The Target has to resolve the Requester's `connectionEndpoint`, so a party that wants to connect but not be found cannot use this option. | No. Being served by a listed Operator is enough. |
 | **Decision delivery** | Pushed as soon as the owner decides, even days later. | Polled. Manual approval may take days, so polling must back off. |
 | **New Node methods** | Target: `POST connections`. Requester: `POST connections/{id}/decision`. Every Credential-Exchange-capable Node implements both. | Target: `POST connections`, `GET connections/{id}`. |
-| **Reuse** | None. | Same keys as Option B1 of §5.6. Prepares for credential-bound signing (§3.7.4). |
-| **Natural pairing** | Option B2 (public discovery, no keys anywhere). | Option B1 (listed and signed discovery). |
+| **Reuse** | None. | The same keys serve the signing variants of open decisions 1 and 2 (§5.5, §5.6), and prepare for credential-bound signing (§3.7.4). |
+| **Natural pairing** | Credentials-based discovery access: no keys anywhere. | Signed discovery access: one key pair per provider, used for queries and connection requests. |
 
 *Editor's note.* The pairings are not forced, but mixing them gives SPs key management *and* an extra callback endpoint. The WG may find it easier to decide B and C together.
 
