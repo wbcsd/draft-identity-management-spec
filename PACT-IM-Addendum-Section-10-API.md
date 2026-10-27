@@ -479,7 +479,7 @@ components:
         assurance:
           type: object
           description: Optional. Absence means the provider's vouching alone.
-          required: [level]
+          required: [level, evidence]
           properties:
             level: { $ref: '#/components/schemas/AssuranceLevel' }
             evidence:
