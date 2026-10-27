@@ -68,7 +68,7 @@ A Directory listing MUST carry:
 | `conformantVersions` | REQUIRED | Base-specification versions for which the Operator's solution holds PACT conformance. MAY be empty (§4.3.5). |
 | `domainVerifiedAt` | REQUIRED | Time the domain challenge last succeeded. |
 | `status` | REQUIRED | `active` or `suspended` (§4.4.2). |
-| `credentials` / `jwksUri` | CONDITIONAL | What the Operator uses to call the Discovery Service, and what its endpoint uses to authenticate calls from that service. The mechanism is open decision 1 and open decision 2 of §5; where a `jwksUri` is used it MUST be under one of `domains`. |
+| `jwksUri` | CONDITIONAL | Required where request signing is adopted (§5.5, §5.6 or Option C2 of §6.4). MUST be under one of `domains`. Client secrets, bearer tokens, private keys and other secret authentication material for discovery MUST be provisioned privately to their intended recipient and MUST NOT be included in Directory read responses. |
 | `contact` | REQUIRED | Operational and security contact. MUST NOT be published to other participants. |
 
 The Directory MUST NOT require further attributes as a condition of listing.
