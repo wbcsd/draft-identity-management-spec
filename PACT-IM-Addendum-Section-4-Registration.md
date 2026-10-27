@@ -4,6 +4,12 @@
 
 > **Status of this section.** Working draft for Technology Working Group review. Attribute names and URN strings are provisional pending WG ratification. **OAuth 2.0 Dynamic Client Registration [RFC7591]** is assumed as the credential-provisioning binding (§6).
 >
+> **Changes in v0.3 (following the 30 September WG session).**
+> - PACT operates a **central Discovery Service** on top of this registry, and it is **private**: only registered Solution Providers may query it (W5, W6, §5).
+> - Registration now carries the means for a provider to call that service and to be called by it; the mechanism is an open decision in §5.5 and §5.6.
+> - Registering a discovery endpoint is the act of **vouching** for the opted-in customers it answers for (W8, §4.5).
+> - Deregistration wording aligned with the WG: existing connections may remain at the provider's discretion, but no new connections can be made through discovery (W9, §4.4.3).
+>
 > **Changes in v0.2 (following the 2 September WG session).** Restructured around W1 and W2:
 > - The central index no longer holds Entity or Node records, or delegations keyed by identifier. It is a **PACT Directory of Discovery Services** (§4.2).
 > - Listing in the Directory is **gated on passing the discovery conformance tests**, which include a **domain-ownership check** of the Operator (§4.3). This replaces the Registry-run proof of endpoint control of v0.1 §4.5.2. Base-specification exchange conformance remains an attribute and is not a gate.
@@ -35,6 +41,8 @@ Registration at either level is deliberately narrow. It is **not** an authorisat
 2. For each listed Discovery Service, the Directory MUST hold the attributes of §4.3.2 and nothing about the Entities that Service answers for.
 3. The Directory MUST publish its listing through the read interface defined in §10. Who may read it is an open decision tied to Option B of §5.6.
 4. The Directory MUST NOT replicate LEI reference data, or any other registry's reference data, about Operators beyond the identifiers they declare.
+5. PACT MUST operate the **Discovery Service** defined in §5 on top of this registry. That service fans a query out to the listed discovery endpoints and returns what they answer; it MUST NOT build or retain an index of the Entities those endpoints serve (§5.3).
+6. The Discovery Service MUST accept queries only from Operators listed in the Directory (§5.5).
 
 ### 4.3 Listing a Discovery Service
 
@@ -60,7 +68,7 @@ A Directory listing MUST carry:
 | `conformantVersions` | REQUIRED | Base-specification versions for which the Operator's solution holds PACT conformance. MAY be empty (§4.3.5). |
 | `domainVerifiedAt` | REQUIRED | Time the domain challenge last succeeded. |
 | `status` | REQUIRED | `active` or `suspended` (§4.4.2). |
-| `jwksUri` | CONDITIONAL | Required only if the WG adopts request signing (Option B1 of §5.6 or Option C2 of §6.4). MUST be under one of `domains`. |
+| `jwksUri` | CONDITIONAL | Required where request signing is adopted (§5.5, §5.6 or Option C2 of §6.4). MUST be under one of `domains`. Client secrets, bearer tokens, private keys and other secret authentication material for discovery MUST be provisioned privately to their intended recipient and MUST NOT be included in Directory read responses. |
 | `contact` | REQUIRED | Operational and security contact. MUST NOT be published to other participants. |
 
 The Directory MUST NOT require further attributes as a condition of listing.
@@ -114,17 +122,20 @@ A suspension MUST be reflected in the Directory listing without delay. The proce
 #### 4.4.3 Delisting
 
 1. An Operator MAY request delisting at any time. Delisting removes the Service from the Directory.
-2. Delisting or suspension MUST NOT be treated as, or relied upon as, a means of revoking exchange credentials. Credentials already provisioned between Nodes remain valid until revoked through the connection lifecycle of §6.7.
+2. Delisting or suspension MUST NOT be treated as, or relied upon as, a means of revoking exchange credentials. Connections already established between Nodes **may remain in place at the departing Operator's discretion**, and credentials already provisioned remain valid until revoked through the connection lifecycle of §6.7.
+2a. Once an Operator is delisted or suspended, **no new connection can be established through discovery** for the Entities it served: its endpoint is no longer queried (§5.4) and its Entities are no longer returned. An Operator leaving the network SHOULD tell its customers what it intends to do with their existing connections.
 3. The Directory MUST NOT reassign a `serviceId` and SHOULD retain a tombstone sufficient to answer "this Service was listed and has been withdrawn".
 4. Delisting MUST NOT delete the audit record of listing events (§7).
 
 ### 4.5 Entities and Nodes at a Discovery Service
 
-An Operator decides how it onboards the Entities it serves: what it asks for, which checks it runs, and how its customers opt in. This addendum constrains only what the Operator's Discovery Service **publishes** (editorial position E2, §12.2).
+An Operator decides how it onboards the Entities it serves: what it asks for, which checks it runs, and how its customers opt in. This addendum constrains only what the Operator's discovery endpoint **publishes** (editorial position E2, §12.2).
+
+**Registration is vouching.** By registering its discovery endpoint, an Operator vouches that every Entity it publishes is its customer and has opted in to cross-platform exchange (W8). That vouching is what a counterparty relies on by default; any further evidence is optional and published as assurance (§3.5).
 
 1. A Discovery Service MUST answer only for Entities whose Node(s) its Operator runs, or for itself in the SP-of-one case.
 2. A Discovery Service MUST publish an Entity only where that Entity has opted in to being discoverable (§5.8).
-3. The assurance published for an Entity MUST satisfy §3.5.2: it identifies the attesting Service, reflects checks that Service actually performed or credentials it verified, and carries per-method timestamps.
+3. Every answer MUST identify the vouching Operator. Where assurance is also published it MUST satisfy §3.5.2: it reflects checks that Operator actually performed or credentials it verified, and carries per-method timestamps. Publishing assurance is OPTIONAL; publishing an unverified level is not.
 4. For each Node, a Discovery Service MUST publish at least `baseUrl` (HTTPS) and, where the Node is Credential-Exchange-capable, `connectionEndpoint`. A Node's `token_endpoint` and `registration_endpoint` MUST NOT be published as authoritative. Both are read from the Node's own `$base-url$/.well-known/openid-configuration` (§5.7).
 5. A Node that supports automated credential provisioning MUST advertise a `registration_endpoint` in that well-known document, as defined by [RFC8414]/[RFC7591]. Its presence is the machine-readable signal that the Node implements the *Credential-Exchange-capable Node* conformance class (§9).
 6. A Discovery Service MAY mark a Node as `provisional` (a demo Node offered as an on-ramp to Entities without exchange tooling). A provisional Node MUST be marked as such in every response.

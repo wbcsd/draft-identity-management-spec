@@ -2,7 +2,7 @@
 
 *Draft v0.1 — 16 September 2026. First draft of the interface additions for the PACT Identity Management addendum to [DATA-EXCHANGE-PROTOCOL] V3, for discussion at the Technology Working Group. Defines the HTTP interfaces behind §4 (Registration), §5 (Node Discoverability) and §6 (Automated Credential Exchange), written from a solution-provider implementation perspective. Editorial conventions follow the base specification: the key words MUST, MUST NOT, SHOULD, SHOULD NOT, MAY, REQUIRED, and OPTIONAL are to be interpreted as in [RFC2119]/[RFC8174] when, and only when, in all capitals.*
 
-> **Status of this section.** Draft endpoints for discussion; paths, parameter names and error codes are provisional. Operations that exist only under one of the open options (A, B, C) are marked. The design guardrail from the WG is that implementing the addendum should require **only a handful of new API methods**. §10.1 counts them.
+> **Status of this section.** Draft endpoints for discussion; paths, parameter names and error codes are provisional. Discovery is now a single design — one PACT-operated service that fans a query out (W5), private to registered providers (W6). What remains open is how callers authenticate (open decisions 1 and 2 of §5) and how a connection request is authenticated (option C of §6.4); operations and headers that depend on those are marked. The design guardrail from the WG is that implementing the addendum should require **only a handful of new API methods**. §10.1 counts them.
 
 ---
 
@@ -12,27 +12,29 @@
 
 The addendum adds interfaces in three places. Only the second and third are implemented by solution providers.
 
-| Where | Operation | Implemented by | Option | PACT-specific? |
+| Where | Operation | Implemented by | Status | PACT-specific? |
 |---|---|---|---|---|
-| PACT Directory | `GET /v1/discovery-services` | PACT | all | yes |
-| PACT Directory | `GET /v1/discovery-services/{serviceId}` | PACT | all | yes |
-| PACT Directory | `GET /v1/resolve?companyId=` | PACT | A2 only | yes |
-| Discovery Service | `GET /3/discovery?companyId=` | **SP** | all | **yes** |
-| Target Node | `POST /3/connections` | **SP** | all | **yes** |
-| Target Node | `GET /3/connections/{connectionId}` | **SP** | C2 only | **yes** |
-| Requester Node | `POST /3/connections/{connectionId}/decision` | **SP** | C1 only | **yes** |
-| Target Node | `POST {registration_endpoint}` | SP's authorisation server | all | no — [RFC7591] |
-| Target Node | `GET`/`PUT`/`DELETE {registration_client_uri}` | SP's authorisation server | all | no — [RFC7592] |
-| Node | `jwks_uri` publication | SP | B1 / C2 | no — [RFC7517] |
+| PACT Discovery Service | `GET /v1/resolve?companyId=` | PACT | normative | yes |
+| PACT Discovery Service | `GET /v1/discovery-services` | PACT | normative — registry listing, readable by registered providers | yes |
+| PACT Discovery Service | `GET /v1/discovery-services/{serviceId}` | PACT | normative | yes |
+| PACT-operated services | `/.well-known/openid-configuration` and the token endpoint it names | PACT | normative (§10.5.1) | no — [RFC8414]/[RFC6749] |
+| Solution Provider | `GET /3/discovery?companyId=` | **SP** | normative — called by the Discovery Service | **yes** |
+| Target Node | `POST /3/connections` | **SP** | normative | **yes** |
+| Target Node | `GET /3/connections/{connectionId}` | **SP** | option C2 only | **yes** |
+| Requester Node | `POST /3/connections/{connectionId}/decision` | **SP** | option C1 only | **yes** |
+| Target Node | `POST {registration_endpoint}` | SP's authorisation server | normative | no — [RFC7591] |
+| Target Node | `GET`/`PUT`/`DELETE {registration_client_uri}` | SP's authorisation server | normative | no — [RFC7592] |
+| Solution Provider | `jwks_uri` publication | SP | only if signing is chosen (§5.5, §5.6, §6.4) | no — [RFC7517] |
 
-**Result against the guardrail.** Whichever options the WG chooses, a solution provider implements **three new PACT-specific methods**: discovery, connection request, and either the decision callback (C1) or the status poll (C2). The other interfaces are standard OAuth 2.0 endpoints that many authorisation servers already provide. The Directory operations are PACT's to build.
+**Result against the guardrail.** A Solution Provider implements **three new PACT-specific methods**: the discovery endpoint, the connection request, and either the decision callback (C1) or the status poll (C2). Central fan-out removes the client-side aggregation that the earlier draft put on every provider. Everything else is standard OAuth 2.0 that many authorisation servers already provide.
 
-| Option combination | New SP methods | Extra SP work |
-|---|---|---|
-| A1 + B2 + C1 | 3 | Client-side fan-out; no keys |
-| A1 + B1 + C2 | 3 | Client-side fan-out; one key pair used for both discovery and connection signing |
-| A2 + B2 + C1 | 3 | No fan-out; no keys |
-| A2 + B1 + C2 | 3 | No fan-out; one key pair |
+| Open decision | Effect on the SP-side API |
+|---|---|
+| **1** — how a provider authenticates to the Discovery Service (§5.5) | Credentials: a token request before each query. Signing: `Signature`/`Signature-Input` headers and a published `jwks_uri` |
+| **2** — how a provider's endpoint authenticates the service (§5.6) | Service only: verify one caller. Direct fallback as well: verify any registered provider, and accept queries from them |
+| **C** — connection request authentication (§6.4) | C1 adds `POST /3/connections/{id}/decision` on the requester; C2 adds `GET /3/connections/{id}` on the target |
+
+Every combination still costs a provider three PACT-specific methods.
 
 ### 10.2 PACT Directory interface
 
@@ -44,16 +46,18 @@ Returns all listed Discovery Services, including `suspended` ones, so that clien
 
 1. The response MUST be `200` with a `data` array of `DiscoveryService` objects (§10.8).
 2. The Directory MUST send HTTP caching headers [RFC9111], including `ETag`. Clients SHOULD make conditional requests.
-3. The listing is publicly readable (§5.6 editor's note).
+3. The listing is readable by registered Solution Providers. Whether any part of it is public is an operational choice and is not specified here.
 4. Withdrawn listings MUST NOT be returned. `GET /v1/discovery-services/{serviceId}` for a withdrawn `serviceId` MUST return `410 Gone`.
 
-#### 10.2.2 `GET /v1/resolve` — *Option A2 only*
+#### 10.2.2 `GET /v1/resolve`
 
-Performs the fan-out of §5.4 on the requester's behalf.
+The discovery query. The service performs the fan-out of §5.4 on the requester's behalf. This is the only way a provider resolves an identifier.
 
 1. Query parameter `companyId` (REQUIRED) is a single URN per §3.4, percent-encoded.
-2. The response MUST be `200` with `companyId` and an `answers` array of `DiscoveryAnswer` objects (§5.7), empty where no Service answered. A `404` MUST NOT be used for "no answers".
-3. Requirements A2-1 to A2-4 of §5.5 apply.
+2. The response MUST be `200` with `companyId`, an `answers` array of `DiscoveryAnswer` objects (§5.7), and a `timedOutServiceIds` array listing the `serviceId` of each active endpoint that timed out (§5.4). Either array MAY be empty; a non-empty `timedOutServiceIds` means the fan-out was incomplete. A `404` MUST NOT be used for "no answers".
+3. The service MUST apply §5.3 (no index, no retention) and §5.4 (fan-out, timeouts, every positive answer returned, each labelled with the vouching provider).
+4. The caller MUST be a registered Solution Provider (§5.5). Authentication is open decision 1.
+5. The response MUST carry the interface version it was served under (§5.9).
 
 ### 10.3 Discovery Service interface
 
@@ -62,11 +66,12 @@ Performs the fan-out of §5.4 on the requester's behalf.
 #### 10.3.1 `GET {discoveryEndpoint}?companyId={urn}`
 
 1. Query parameter `companyId` (REQUIRED) is a single URN, percent-encoded.
-2. Where the Service publishes an Entity whose `companyIds` contains the value, it MUST return `200` with one `DiscoveryAnswer` (§5.7). Under Option B2 only the minimal fields are returned.
+2. Where the provider publishes an Entity whose `companyIds` contains the value, it MUST return `200` with one `DiscoveryAnswer` (§5.7).
 3. Otherwise it MUST return `404` with error code `NoSuchEntity`, identically for unknown and not-visible identifiers (§5.8).
 4. A malformed `companyId` MUST return `400` with `BadRequest`.
-5. *Option B1:* the request carries `Signature-Input` and `Signature` headers [RFC9421] and a `PACT-Service-Id` header. Failure returns `401` with `InvalidSignature` or `RequesterNotListed`.
-6. *Option B2:* the Service SHOULD rate-limit and MAY return `429` with `Retry-After`.
+5. The caller is the PACT Discovery Service. The endpoint MUST authenticate it; the mechanism is **open decision 2** of §5.6, and under the fallback variant the endpoint MUST also accept calls from any registered Solution Provider it can verify.
+6. The Service SHOULD rate-limit and MAY return `429` with `Retry-After`.
+7. The response MUST carry the interface version it was served under (§5.9).
 7. The Service SHOULD send `Cache-Control` headers (§5.9).
 
 ### 10.4 Node connection interface
@@ -99,10 +104,21 @@ These are not defined by this addendum. They are listed here because the conform
 
 | Interface | Standard | Addendum requirements |
 |---|---|---|
-| `$base-url$/.well-known/openid-configuration` | Already REQUIRED by the base specification | MUST include `registration_endpoint` (§4.5); MUST include `jwks_uri` under Option B1 or C2. |
+| `$base-url$/.well-known/openid-configuration` | Already REQUIRED by the base specification | MUST include `registration_endpoint` (§4.5); MUST include `jwks_uri` where signing is chosen (§5.5, §5.6) or under option C2. |
 | `POST {registration_endpoint}` | [RFC7591] | Initial access token per §6.6; `grant_types` restricted to `client_credentials`; `pact_connection_id` metadata. |
 | `GET`/`PUT`/`DELETE {registration_client_uri}` | [RFC7592] | Rotation (§6.7.1) and Requester-initiated revocation (§6.7.3). |
-| `jwks_uri` | [RFC7517] | Under Option B1 or C2 only. MUST be under a domain verified for the Operator (§4.3.3). |
+| `jwks_uri` | [RFC7517] | Only where signing is chosen (§5.5, §5.6) or under option C2. MUST be under a domain verified for the Operator (§4.3.3). |
+
+#### 10.5.1 PACT-operated services
+
+*Normative. Added after the first external implementer could not find how to obtain credentials for the PACT identity management service, and used a route that exists in no published document.*
+
+1. A PACT-operated service that requires an access token MUST publish OAuth 2.0 authorisation server metadata at `/.well-known/openid-configuration`, as the base specification expects of a host system (§5.2 of [DATA-EXCHANGE-PROTOCOL]), and that document MUST name the `token_endpoint` in use.
+2. The token endpoint, the grant type, and how a registered Solution Provider obtains its credentials MUST be documented in this specification and in the service documentation. A route that is only described in correspondence does not satisfy this requirement.
+3. Where a PACT-operated service serves a token route that predates this section, that route MUST remain documented and supported until a deprecation is announced under §5.9.
+4. The same applies to the Discovery Service itself once open decision 1 is settled: whatever a provider needs in order to call it is published, not communicated case by case.
+
+*Editor's note.* This is a conformance point for PACT, not for Solution Providers. It is in the specification because the gap was found in the field rather than in review.
 
 ### 10.6 Errors
 
@@ -199,23 +215,28 @@ paths:
       tags: [directory]
       operationId: resolveViaDirectory
       x-pact-implementer: PACT
-      x-pact-option: A2
-      summary: Directory-brokered fan-out (Option A2 only)
+      summary: Resolve an identifier; the service fans out to registered discovery endpoints
       parameters:
         - $ref: '#/components/parameters/CompanyId'
       responses:
         '200':
-          description: Aggregated answers; empty array when none.
+          description: >
+            Aggregated answers and the serviceIds of active discovery endpoints
+            that timed out. timedOutServiceIds is empty when no endpoint timed out.
           content:
             application/json:
               schema:
                 type: object
-                required: [companyId, answers]
+                required: [companyId, answers, timedOutServiceIds]
                 properties:
                   companyId: { $ref: '#/components/schemas/CompanyId' }
                   answers:
                     type: array
                     items: { $ref: '#/components/schemas/DiscoveryAnswer' }
+                  timedOutServiceIds:
+                    type: array
+                    description: serviceIds of active discovery endpoints that timed out; a non-empty array indicates incomplete fan-out.
+                    items: { type: string }
         '400':
           $ref: '#/components/responses/Error'
 
@@ -227,8 +248,9 @@ paths:
       summary: Resolve a companyIds value to Node(s)
       description: >
         Path is RECOMMENDED; the actual URL is the listing's discoveryEndpoint.
-        Under Option B1 the request MUST be signed (RFC 9421). Under Option B2
-        only the minimal fields of DiscoveryAnswer are returned.
+        Called by the PACT Discovery Service. How the caller is authenticated is
+        open decision 2 of section 5.6; the signature headers below apply where
+        signing is chosen.
       parameters:
         - $ref: '#/components/parameters/CompanyId'
         - $ref: '#/components/parameters/ServiceIdHeader'
@@ -352,19 +374,19 @@ components:
       name: PACT-Service-Id
       in: header
       required: false
-      description: Caller's serviceId. REQUIRED under Option B1 (discovery) and C2 (connections).
+      description: Caller's serviceId. REQUIRED where signing is chosen (sections 5.5, 5.6) and under option C2 (connections).
       schema: { type: string }
     SignatureInput:
       name: Signature-Input
       in: header
       required: false
-      description: RFC 9421. REQUIRED under Option B1 (discovery) and C2 (connections).
+      description: RFC 9421. REQUIRED where signing is chosen (sections 5.5, 5.6) and under option C2 (connections).
       schema: { type: string }
     Signature:
       name: Signature
       in: header
       required: false
-      description: RFC 9421. REQUIRED under Option B1 (discovery) and C2 (connections).
+      description: RFC 9421. REQUIRED where signing is chosen (sections 5.5, 5.6) and under option C2 (connections).
       schema: { type: string }
 
   responses:
@@ -422,7 +444,7 @@ components:
         jwksUri:
           type: string
           format: uri
-          description: Present only under Option B1 or C2.
+          description: Present only where signing is chosen (sections 5.5, 5.6) or under option C2.
 
     AssuranceLevel:
       type: string
@@ -448,27 +470,26 @@ components:
         conformantVersions:
           type: array
           items: { type: string }
-          description: Omitted in the minimal answer (Option B2).
         provisional: { type: boolean }
 
     DiscoveryAnswer:
       type: object
-      required: [companyIds, attestedBy, assurance, nodes]
+      required: [companyIds, vouchedBy, nodes]
       properties:
         companyIds:
           type: array
           minItems: 1
           items: { $ref: '#/components/schemas/CompanyId' }
-        legalName: { type: string, description: Omitted in the minimal answer (Option B2). }
-        attestedBy: { type: string, description: serviceId of the answering Discovery Service. }
+        legalName: { type: string }
+        vouchedBy: { type: string, description: serviceId of the Solution Provider that answered, and therefore vouches. }
         assurance:
           type: object
-          required: [level]
+          description: Optional. Absence means the provider's vouching alone.
+          required: [level, evidence]
           properties:
             level: { $ref: '#/components/schemas/AssuranceLevel' }
             evidence:
               type: array
-              description: Omitted in the minimal answer (Option B2).
               items: { $ref: '#/components/schemas/Evidence' }
         nodes:
           type: array
@@ -535,7 +556,7 @@ components:
 2. Implement `GET /3/discovery` over your customer base, returning only customers that opted in (§5.8).
 3. Record for each customer which checks you performed (email, domain, LEI, VC) and when, and publish the resulting assurance (§3.5.2).
 4. Pass the discovery conformance tests and get listed (§4.3.4).
-5. *Option B1:* publish a JWKS and verify signatures on incoming queries.
+5. Authenticate the PACT Discovery Service on incoming queries (open decision 2), and obtain whatever the service requires to be called (open decision 1).
 
 **To accept connection requests** (*Credential-Exchange-capable Node*)
 
@@ -546,7 +567,7 @@ components:
 
 **To request connections for your customers**
 
-10. Read the Directory listing and resolve the target (§5.4). *Option A1:* fan out to all Discovery Services.
+10. Resolve the target with one call to the PACT Discovery Service (§10.2.2). No client-side fan-out.
 11. Send the connection request. *Option C1:* implement `POST /3/connections/{id}/decision`. *Option C2:* sign requests and poll.
 12. Register as an OAuth client with the initial access token, store the credentials, and use them in the unchanged §5.5 token flow.
 
@@ -554,7 +575,8 @@ components:
 
 ## Open items carried from this section
 
-- Options A, B and C (§5.5, §5.6, §6.4) decide which marked operations become normative.
+- Open decisions 1 and 2 (§5.5, §5.6) and option C (§6.4) decide which marked operations and headers become normative.
+- The announcement channel and transition period for interface version changes (§5.9).
 - `$directory-url$` hostname and API versioning of the Directory (parked item P1).
 - Registration of the reserved names in §10.7.
 - Whether `PACT-Service-Id` is replaced by the signature `keyid`.

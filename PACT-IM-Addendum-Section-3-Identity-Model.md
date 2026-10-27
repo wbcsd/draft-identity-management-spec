@@ -4,6 +4,8 @@
 
 > **Status of this section.** Working draft for Technology Working Group review. Open items are called out inline as *Editor's notes* and consolidated in the addendum outline §12. Where this section defines a URN namespace or attribute name, the exact string is provisional pending WG ratification.
 >
+> **Changes in v0.3 (following the 30 September WG session).** Vouching by the serving Solution Provider is the baseline for identity; the assurance levels below become an OPTIONAL attribute a provider may publish (W8). §3.4.1 adds how an identifier scheme is named and how values are matched; the accepted set of schemes stays **open pending the Taiwan UBN proof of concept on 28 October**.
+>
 > **Changes in v0.2 (following the 2 September WG session).** The LEI is no longer the primary or canonical identifier; it is one optional layer (W3). The assurance ladder is extended with *Email-verified* and *Domain-verified* levels (W4). Assurance for buyers and suppliers is attested by the Operator of their Discovery Service (§3.5). A new §3.7 sets the identity-verification options side by side.
 
 ---
@@ -72,13 +74,37 @@ urn:lei:<20-character-LEI>
 
 *Editor's note.* The exact LEI URN namespace (`urn:lei:…` vs. an LEI sub-type within the existing `urn:pfi:…` convention) is to be ratified by the WG. Two related questions are open: whether a verified Internet domain should itself be expressible as a `companyIds` value (for example a `did:web` identifier), and whether a VAT or Chamber-of-Commerce number can serve as a PACT identifier (parked item P2, §12.1).
 
+#### 3.4.1 Naming a scheme, and matching values
+
+A discovery query only succeeds if both sides write the identifier the same way. This version specifies **how** a scheme is named and how values are compared; **which** schemes are accepted is open (see the editor's note below).
+
+1. Every identifier MUST name its issuing scheme in the URN namespace. An identifier whose scheme cannot be determined from the value MUST NOT be used in discovery.
+2. A scheme definition MUST state the **canonical form** of its values: permitted characters, case, any country or registry prefix, separators, and check digits where the scheme defines them.
+3. An Entity's `companyIds` MUST be published in canonical form, and a query MUST be made in canonical form. Implementations MUST compare identifiers by **exact match after canonicalisation** and MUST NOT match on name, address or any fuzzy comparison.
+4. Where a scheme is national rather than global — a VAT or Chamber of Commerce number — the identifier MUST carry the issuing country. The same number issued in two countries denotes two different Entities.
+5. A Solution Provider SHOULD check that an identifier it publishes is well formed for its scheme, and MAY check it against the issuing registry. What it checked MAY be published as assurance evidence (§3.5).
+
+*Candidate forms (non-normative, for illustration only):*
+
+| Scheme | Illustrative URN form |
+|---|---|
+| Legal Entity Identifier | `urn:lei:5493001KJTIIGC8Y1R12` |
+| VAT identification number | `urn:vatin:NL:123456789B01` |
+| Chamber of Commerce / business register | `urn:coc:NL:12345678` |
+| Taiwan Unified Business Number | `urn:ubn:TW:12345675` |
+| DUNS | `urn:duns:123456789` |
+
+*Editor's note.* The set of accepted schemes is **not decided**. The WG parked the question of whether a VAT or tax number can serve as a PACT identifier on 2 September, wanting it tested against a real supply chain; Taiwan's Unified Business Number, inside a mandatory e-invoicing system, is that test and is presented on **28 October**. Until then this section fixes only the mechanics, and the list above is illustrative.
+
 ### 3.5 Identity assurance
 
-An organisational identity carries an **assurance level**, which is an attribute of the identity and does not affect how the Entity is represented (§3.4) or whether it may take part (§4).
+**Vouching is the baseline.** By registering its discovery endpoint, a Solution Provider vouches that the Entities it publishes are its customers and have opted in to cross-platform exchange (W8, §4.5). Every discovery answer MUST identify the vouching provider, and that is the minimum a counterparty relies on.
+
+On top of that baseline, an organisational identity MAY carry an **assurance level** describing what was actually verified. It is an attribute of the identity and does not affect how the Entity is represented (§3.4) or whether it may take part (§4).
 
 #### 3.5.1 Assurance levels
 
-This addendum defines the following assurance levels, in ascending order:
+Where a provider publishes assurance, this addendum defines the following levels, in ascending order:
 
 | Level | What has been established | Evidence |
 |---|---|---|
@@ -88,9 +114,10 @@ This addendum defines the following assurance levels, in ascending order:
 | **Registry-verified** | The Entity is *Domain-verified* **and** holds an LEI whose registration status is `ISSUED`; its legal existence has been validated by an LEI issuer as part of issuance. | Domain challenge plus LEI status check (§3.7.3). |
 | **Credential-verified** | The Entity, or a delegated role acting for it, has presented a verifiable credential that cryptographically proves the organisational identity. | Verified credential presentation (§3.7.4). |
 
-1. The levels from *Email-verified* to *Registry-verified* are cumulative: each includes the evidence of the level below it. *Credential-verified* MAY be reached directly, since the credential itself binds the holder to the identifier.
-2. An assurance level applies to an Entity identity as a whole, but the evidence supporting it MUST be recorded per method, with the time it was last confirmed (§3.5.2).
-3. An email address at a domain operated by a public mailbox provider MUST NOT support *Email-verified*.
+1. Publishing an assurance level is OPTIONAL. An answer without one carries the provider's vouching alone, and a counterparty MUST NOT read its absence as a negative statement about the Entity.
+2. The levels from *Email-verified* to *Registry-verified* are cumulative: each includes the evidence of the level below it. *Credential-verified* MAY be reached directly, since the credential itself binds the holder to the identifier.
+3. An assurance level applies to an Entity identity as a whole, and where it is published the evidence MUST be given per method, with the time it was last confirmed (§3.5.2).
+4. An email address at a domain operated by a public mailbox provider MUST NOT support *Email-verified*.
 
 *Editor's note.* *Registry-verified* is defined to require *Domain-verified* because an LEI status check on its own shows only that the identifier is valid, not that the party presenting it is that Entity. Requiring a verified domain as well narrows that gap without closing it: an LEI record carries no domain, so the link between the verified domain and the LEI still rests on the attesting Operator's judgement. Only *Credential-verified* removes this gap cryptographically. The WG should confirm this position.
 
@@ -98,7 +125,7 @@ This addendum defines the following assurance levels, in ascending order:
 
 The PACT Network does not verify buyer or supplier identities itself.
 
-1. For *Email-verified*, *Domain-verified*, and *Registry-verified*, the assurance level is **attested by the Operator of the Discovery Service** through which the Entity is discoverable. That Operator performs the check when it onboards the Entity. How it does so is not specified; what it publishes is (§5.7).
+1. Vouching is carried by the registration itself: the provider that answers for an Entity is the provider that vouches for it. Where that provider also publishes an assurance level — *Email-verified*, *Domain-verified* or *Registry-verified* — the level is **attested by that same provider**, which performed the check when it onboarded the Entity. How it does so is not specified; what it publishes is (§5.7).
 2. A Discovery Service MUST NOT publish an assurance level for which it has not itself performed the check, or verified a credential.
 3. Every published assurance level MUST identify the attesting Discovery Service and carry, per method, the time the evidence was last confirmed.
 4. For *Credential-verified*, a counterparty MAY verify the credential itself instead of relying on the Operator's attestation (§3.7.4, §6).
@@ -106,7 +133,7 @@ The PACT Network does not verify buyer or supplier identities itself.
 
 #### 3.5.3 Assurance and connection policy
 
-1. The network MUST NOT require any assurance level above *Self-asserted* as a condition of being listed, discovered, or sending a connection request.
+1. The network MUST NOT require any published assurance as a condition of being listed, discovered, or sending a connection request.
 2. Each party decides, through its own connection policy (§6), which minimum assurance level it accepts from a counterparty. *Email-verified* or *Domain-verified* is a sufficient basis for a connection **where both parties agree** to accept it; this is the working position for this version of the addendum (W4).
 3. Discovery and connection policies MAY treat a higher assurance level as preferable.
 

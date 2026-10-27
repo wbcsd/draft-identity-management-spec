@@ -1,8 +1,15 @@
 # PACT Identity Management Addendum — §5 Node Discoverability (Draft)
 
-*Draft v0.1 — 16 September 2026. First draft of normative text for the Node Discoverability section of the PACT Identity Management addendum to [DATA-EXCHANGE-PROTOCOL] V3. Builds on §3 (Identity Model) and §4 (Registration), and implements the decision of the Technology Working Group session of 2 September 2026 that PACT runs a central directory of solution-provider discovery endpoints while buyer and supplier data stays with each provider (W1; see the addendum outline, §12.1). Editorial conventions follow the base specification: the key words MUST, MUST NOT, SHOULD, SHOULD NOT, MAY, REQUIRED, and OPTIONAL are to be interpreted as in [RFC2119]/[RFC8174] when, and only when, in all capitals.*
+*Draft v0.2 — 14 October 2026. Normative text for the Node Discoverability section of the PACT Identity Management addendum to [DATA-EXCHANGE-PROTOCOL] V3. Builds on §3 (Identity Model) and §4 (Registration). Implements the decisions of the Technology Working Group session of **30 September 2026**: PACT operates a **central discovery service** that fans a query out to the discovery endpoints of registered Solution Providers, and the service is **private** — only registered Solution Providers may query it (see the addendum outline, §12.4). Editorial conventions follow the base specification: the key words MUST, MUST NOT, SHOULD, SHOULD NOT, MAY, REQUIRED, and OPTIONAL are to be interpreted as in [RFC2119]/[RFC8174] when, and only when, in all capitals.*
 
-> **Status of this section.** Working draft for Technology Working Group review. **Two design decisions are deliberately left open and presented side by side** for the WG: how the query fans out across Discovery Services (Option A, §5.5), and who may send discovery queries (Option B, §5.6). Normative text that depends on the choice is marked with the option it belongs to.
+> **Status of this section.** Working draft for Technology Working Group review.
+>
+> **Changes in v0.2 (following the 30 September WG session).**
+> - The two options of v0.1 are gone. **Central fan-out is the design** (W5) and the service is **private** (W6). Both options and the reasoning behind the choice are recorded in the decision log (§12.4), not here.
+> - A Solution Provider implements **one** discovery endpoint, called by the PACT discovery service rather than by every other provider.
+> - Discoverability is **opt-in, held and managed by the provider** (W7); by registering, a provider **vouches** for the customers that opted in (W8).
+> - New §5.9 on **version changes to the service**, the item the WG asked for on 30 September (W10).
+> - **Two decisions remain open** and are presented side by side: how a provider authenticates **to** the service (§5.5), and how a provider's endpoint authenticates calls **from** it (§5.6).
 
 ---
 
@@ -12,156 +19,127 @@
 
 Discovery answers one question for a party that wants to exchange PCF data with an organisation it has not exchanged with before:
 
-> *Given one of this organisation's `companyIds`, which Node(s) can I send a connection request to, who vouches for that answer, and how strongly?*
+> *Given one of this organisation's `companyIds`, which Node(s) can I send a connection request to, and who vouches for that answer?*
 
-The target case is **cross-platform**: the requester and the target are served by different Operators and do not already know each other's endpoints. Where two parties already know each other's endpoints, discovery is not needed and nothing in this section applies.
+The target case is **cross-platform**: the two parties are served by different Solution Providers and do not know each other's endpoints. **Discovery within a provider's own platform is out of scope** — a provider already knows its own customers and handles that itself.
 
-Discovery never grants access. A discovery answer lets a party *request* a connection. Whether the connection is made is decided by the target (§6).
+Discovery never grants access. A discovery answer lets a party *request* a connection; whether the connection is made is decided by the target (§6).
 
-### 5.2 Why a directory of Discovery Services rather than DNS
+### 5.2 Why a directory rather than DNS
 
-*Non-normative rationale, recorded as a design decision at the request of the WG.*
+*Non-normative rationale, recorded at the request of the WG.*
 
-A WG participant asked whether DNS could do the job: supplier domains and email addresses are often known already, and a DNS record could point at a PACT endpoint. The 2 September session chose a directory of Discovery Services instead, for these reasons:
+DNS was considered: supplier domains are often known already, and a DNS record could point at a PACT endpoint. The directory was chosen because:
 
-1. **PCF exchange is keyed on `companyIds`, not domains.** Footprints carry `companyIds`, and the domain a buyer knows (for example from a contact's email address) often says nothing about where the supplier's PCF tooling lives.
-2. **Most suppliers are hosted by a solution provider.** A DNS-based design needs every supplier's IT team to publish records, and to change them whenever the supplier changes provider. For thousands of suppliers that is exactly the registration burden the WG wants to avoid. With a directory of Discovery Services, the provider publishes once for all its customers.
-3. **DNS offers no opt-in short of "public", and no gate.** A DNS record is visible to anyone and cannot be withheld from non-conformant or unknown callers. Conformance-gated listing (W2) and suspension (§4.4.2) have no equivalent in DNS.
-4. **DNS would publish each supplier's choice of provider to the world.** That feeds the solution-provider concern about competitors and disintermediation.
+1. **PCF exchange is keyed on `companyIds`, not domains.** The domain a buyer knows, typically from a contact's email address, often says nothing about where the supplier's PCF tooling lives.
+2. **Most suppliers are hosted by a Solution Provider.** A DNS design needs every supplier's IT team to publish and maintain records. With a provider-level directory, the provider publishes once for all its customers.
+3. **DNS offers no opt-in short of "public", and no gate.** A record is visible to everyone and cannot be withheld from unknown callers; conformance-gated listing (§4.3) and suspension (§4.4.2) have no DNS equivalent.
+4. **DNS would publish each supplier's choice of provider to the world**, which is precisely the exposure the private model (§5.5) avoids.
 
-A domain-keyed lookup, for example a DNS record under the supplier's domain that points at its Discovery Service, remains a possible *complement* in a later version. It would add a lookup key without changing the model.
+A domain-keyed lookup remains possible as a *complement* in a later version.
 
 ### 5.3 Architecture
 
-Discovery involves three roles and no central index of parties:
-
 ```
-             ┌───────────────────────────────┐
-             │ PACT Directory                │  lists Discovery Services only (§4)
-             └──────────────┬────────────────┘
-                            │ 1. list active Discovery Services
-                            ▼
-┌──────────────┐  2. query by companyId   ┌──────────────────────────────┐
-│ Requester    │ ───────────────────────► │ Discovery Service (per SP)   │
-│ (Node / SP)  │ ◄─────────────────────── │ answers for its own customers│
-└──────┬───────┘  3. Node(s) + assurance  └──────────────────────────────┘
-       │ 4. GET $base-url$/.well-known/openid-configuration
-       ▼
-┌──────────────┐
-│ Target Node  │  token_endpoint, registration_endpoint (§4.5)
-└──────────────┘
+┌──────────────────────┐   1. resolve(companyId)    ┌──────────────────────────────┐
+│ Requesting Solution  │ ─────────────────────────► │ PACT Discovery Service        │
+│ Provider (on behalf  │ ◄───────────────────────── │ · registry of SP endpoints §4 │
+│ of its customer)     │   4. aggregated answers    │ · fan-out, retains nothing    │
+└──────────────────────┘                            └───────┬───────┬───────┬──────┘
+                                                            │ 2. query each registered
+                                                            ▼       ▼       ▼
+                                                   ┌────────────┐ ┌─────┐ ┌─────┐
+                                                   │ SP-S disc. │ │SP-X │ │SP-Y │
+                                                   │ endpoint   │ │ 404 │ │ 404 │
+                                                   └─────┬──────┘ └─────┘ └─────┘
+                                                         │ 3. match: node metadata
+                                                         ▼
+                                              ┌──────────────────────┐
+┌──────────────────────┐  5. GET $base-url$/.well-known/openid-configuration
+│ Requester  ─────────────────────────────────►│ Target Node          │
+└──────────────────────┘                       └──────────────────────┘
 ```
 
-Under Option A2 (§5.5), step 2 is performed by the PACT Directory on the requester's behalf.
+1. PACT MUST operate a single **PACT Discovery Service**, which holds the registry of Solution Provider discovery endpoints (§4) and performs the fan-out.
+2. A Solution Provider MUST implement exactly one **discovery endpoint**, which answers for the Entities it serves (§5.7).
+3. The Discovery Service MUST NOT hold, index or build a register of the Entities that providers answer for, and MUST NOT store, cache or log query identifiers or answers beyond what is needed to serve the request and to operate the service securely.
+4. Neither the Discovery Service nor any provider's discovery endpoint is in the credential or data path. Once a connection exists (§6), exchange MUST NOT depend on either being available.
 
 ### 5.4 Resolution procedure
 
-To resolve a `companyIds` value, a requester MUST:
+1. A requester resolves an identifier by sending **one** query to the Discovery Service (§10.2), carrying a single `companyIds` value in canonical form (§3.4).
+2. The Discovery Service MUST query every registered discovery endpoint whose listing status is `active`, and MUST NOT query a suspended or withdrawn listing.
+3. The Discovery Service SHOULD query endpoints in parallel and SHOULD apply a per-endpoint timeout; an endpoint that does not answer in time is treated as returning no match, and the response MUST say so rather than omitting it silently.
+4. The Discovery Service MUST return every positive answer it received, each labelled with the provider that gave it. An Entity MAY be served by more than one provider, so a requester MUST NOT assume at most one answer.
+5. Where answers conflict — two unrelated providers claiming the same identifier with different Nodes — the requester MUST NOT silently discard or merge them, SHOULD present them with the vouching provider, and SHOULD report a suspected false answer to PACT (§4.4.2).
+6. For each Node it intends to contact, the requester reads `token_endpoint` and `registration_endpoint` from that Node's own `$base-url$/.well-known/openid-configuration`, never from the discovery answer (§4.5).
 
-1. Obtain the current list of Discovery Services with `status` `active` from the PACT Directory (§10.2), and MUST NOT query a Service whose listing is `suspended` or withdrawn.
-2. Query **every** active Discovery Service for the `companyIds` value, as defined by the chosen fan-out option (§5.5), using the interface of §10.3.
-3. Treat a `404` from a Service as "this Service does not publish that identifier", without distinguishing unknown from not visible (§5.8).
-4. Collect all positive answers. An Entity MAY legitimately be served by more than one Operator (§3.2), so a requester MUST NOT assume that at most one Service answers.
-5. For each Node it intends to contact, read `token_endpoint` and `registration_endpoint` from the Node's `$base-url$/.well-known/openid-configuration`, and not from the discovery answer (§4.5).
+*Editor's note.* One identifier per query. Batch queries are left out of this version to keep the interface small; the WG can add them once traffic patterns are known.
 
-Where answers conflict, for example two unrelated Operators both claim to serve the same `companyIds` value with different Nodes:
+### 5.5 Access to the Discovery Service — private (W6)
 
-6. A requester MUST NOT silently discard or merge answers. It SHOULD present them with their attesting Service and assurance (§5.7), and MAY apply a policy that prefers the answer with higher assurance.
-7. A requester SHOULD report a suspected false answer to PACT under the procedure of §4.4.2.
+1. The Discovery Service MUST accept queries **only from registered Solution Providers** (including an SP-of-one, §4.3.1). It MUST NOT offer anonymous or public lookup in this version.
+2. A provider queries on behalf of its own customers; the Discovery Service MUST NOT require the identity of the customer on whose behalf a query is made, and a provider SHOULD NOT supply it.
+3. Opening the service to a wider set of callers is a future change, subject to §5.9: a public read tier would return a reduced answer and is not defined here.
 
-*Editor's note.* The requester queries by one identifier at a time. A requester that holds several `companyIds` for the same target MAY resolve each. Batch queries are left out of this version to keep the interface to one simple method.
+#### Open decision 1 — how a provider authenticates to the service
 
-### 5.5 Open decision A — who performs the fan-out
+*The WG has not settled this. Both options are drafted; the choice affects §10 only.*
 
-#### Option A1 — Client-side fan-out
-
-The PACT Directory only publishes the list of Discovery Services. The requester (its Node or its Operator on its behalf) sends the query to every active Service in parallel and aggregates the answers.
-
-- A1-1. The requester MUST perform steps 2–4 of §5.4 itself.
-- A1-2. The requester SHOULD query Services in parallel and SHOULD apply a per-Service timeout. A Service that does not answer within the timeout is treated as having returned `404`.
-
-#### Option A2 — Directory-brokered fan-out
-
-The requester sends one query to the PACT Directory, which forwards it to every active Discovery Service and returns the aggregated answers.
-
-- A2-1. The Directory MUST expose a resolve interface (§10.2, `GET /v1/resolve`) and MUST return every positive answer unmodified, each labelled with its attesting `serviceId`.
-- A2-2. The Directory MUST NOT store, cache, or log discovery answers, or the identifiers queried, beyond what is needed to complete the request and to operate the service securely. Otherwise the Directory would become the central index of parties that W1 rules out.
-- A2-3. The Directory MUST NOT forward the requester's identity to Discovery Services.
-- A2-4. The Directory is not in the credential or data path. It is in the **discovery** path only.
-
-#### Trade-offs
-
-| | A1 Client-side | A2 Directory-brokered |
+| | **1a — Credentials issued at registration** | **1b — Signed requests** |
 |---|---|---|
-| **Who learns about a lookup** | Every listed Discovery Service learns that *this requester* (under B1) or *someone* (under B2) looked up the identifier. Competing SPs learn which suppliers another SP's customers are looking for. | Only PACT learns who looked up what. Discovery Services see the Directory as the caller. |
-| **PACT's role** | Publishes a list. Not in any request path. | In the discovery request path. Must be operated and trusted not to retain query data (A2-2). |
-| **Availability** | Discovery works while the listing is cached, even if the Directory is down. | Discovery stops when the Directory is down. Established connections are unaffected either way (§4.6). |
-| **Requester implementation** | Fan-out, timeouts, and aggregation in every requester. | One HTTP call. |
-| **Discovery Service implementation** | One method (§10.3), called by many requesters. | One method (§10.3), called only by the Directory. Easier rate limiting and authentication (only one caller). |
-| **Scale** | N parallel calls per lookup. With about 50 SPs and lookups mostly when a new supplier is onboarded, this is modest; it grows linearly with the number of SPs. | One call for the requester; N calls for the Directory. PACT carries the load. |
-| **Conformance testing** | Aggregation behaviour of requesters is hard to test. | Aggregation is PACT's own code; only the Discovery Service interface needs testing. |
-| **New PACT-side methods** | `GET /v1/discovery-services` | `GET /v1/discovery-services`, `GET /v1/resolve` |
-| **New SP-side methods** | 1 | 1 |
+| Mechanism | The service issues OAuth 2.0 client credentials when the provider is registered; the provider presents a bearer token on each query | The provider signs each query (HTTP Message Signatures [RFC9421]) with a key published at a `jwks_uri` under a domain verified in §4.3.3 |
+| Provider effort | Store a secret, fetch a token — the same pattern providers already implement for the base specification | Key pair, JWKS publication, signing |
+| Consistency with what exists | Matches the token route the PACT identity management service already serves (§10.5) | New infrastructure, but no shared secret to leak and reusable for §6 |
+| Revocation | Revoke the client at suspension | Remove the listing; keys stay valid until the listing is checked |
 
-### 5.6 Open decision B — who may query a Discovery Service
+### 5.6 Calls to a provider's discovery endpoint
 
-#### Option B1 — Listed Operators only, with signed requests
+1. A provider's discovery endpoint MUST answer queries from the PACT Discovery Service, and MUST authenticate that caller.
+2. It MUST NOT accept unauthenticated queries from any source.
 
-- B1-1. A discovery query MUST be signed with HTTP Message Signatures [RFC9421], covering at least `@method`, `@target-uri`, and a `created` timestamp, using a key published at the caller's `jwksUri` as listed in the PACT Directory (§4.3.2).
-- B1-2. The request MUST identify the caller's `serviceId`. A Discovery Service MUST verify the signature against that listing's `jwksUri`, MUST check that the listing is `active`, and MUST reject the request with `401` otherwise.
-- B1-3. Under Option A2, the caller is the PACT Directory, which is listed with its own `jwksUri` for this purpose.
+#### Open decision 2 — how the endpoint authenticates the service, and whether direct calls are allowed
 
-#### Option B2 — Public queries with a minimal answer
-
-- B2-1. A Discovery Service MUST accept unauthenticated discovery queries.
-- B2-2. The answer MUST be limited to the fields marked *minimal* in §5.7.
-- B2-3. A Discovery Service SHOULD rate-limit queries per client and MAY return `429`.
-
-#### Trade-offs
-
-| | B1 Listed & signed | B2 Public |
+| | **2a — Service only** | **2b — Service, plus direct provider-to-provider as fallback** |
 |---|---|---|
-| **Harvesting risk** | Only accountable, listed Operators can query, and each query is attributable. Bulk harvesting is detectable and can lead to suspension. | Anyone can take the openly downloadable list of LEIs (several million) and map which SP serves which company. That exposes each SP's customer base to competitors. Rate limiting slows this but cannot stop it. |
-| **Who can discover** | Only parties served by a listed Operator, including SPs-of-one. A self-hosted Node that is not listed cannot discover others. | Anyone, including parties that are not yet listed and testers. |
-| **Implementation cost** | Key pair, JWKS publication, and signature verification for every Operator. Libraries exist, but it is new work for most SPs. | None beyond the endpoint. |
-| **Reuse** | The same keys serve Option C2 of §6.4 (signed connection requests) and prepare the ground for credential-based trust (W3). | No reuse. |
-| **Answer detail** | Full answer (§5.7) can be returned, because the caller is known. | Minimal answer only. |
-| **Relationship to parked item P3** | Discovery restricted to conformant, listed Operators. | Discovery public. |
+| Who may call | The PACT Discovery Service and nobody else | The service, and any registered provider calling directly |
+| Provider effort | One caller to authenticate; simplest to build and to conformance-test | Must authenticate many callers and check each is registered |
+| Availability | Discovery is unavailable while the service is down; established connections are unaffected (§5.3, requirement 4) | A provider can fall back to querying endpoints directly from the registry listing |
+| Exposure | Every queried provider sees the identifier; central fan-out can hide the requesting provider's identity | Every queried provider sees both the identifier and the authenticated requesting provider |
 
-*Editor's note.* The **Directory listing itself** (which SPs exist and where their Discovery Services are) is low-sensitivity and largely public already through PACT's list of conformant solutions. The draft therefore assumes the listing is publicly readable under both options. Parked item P3 is mainly about *discovery queries*, which is Option B.
+*Editor's note.* The two open decisions interact: 1b and 2b share one signing mechanism, while 1a and 2a together are the smallest thing a provider has to build. The WG may find them easier to decide as a pair.
 
 ### 5.7 Discovery answer
 
-A positive discovery answer describes one Entity and the Node(s) through which it can be contacted. Fields marked **minimal** are the only ones returned under Option B2.
+A positive answer describes one Entity and the Node(s) through which it can be contacted.
 
-| Field | Minimal | Requirement | Notes |
-|---|---|---|---|
-| `companyIds` | ✓ | REQUIRED | The Entity's identifiers the Service publishes. MUST include the value queried. |
-| `legalName` |  | OPTIONAL | As known to the Operator. |
-| `attestedBy` | ✓ | REQUIRED | `serviceId` of the answering Discovery Service. |
-| `assurance.level` | ✓ | REQUIRED | One of the levels of §3.5.1. |
-| `assurance.evidence[]` |  | REQUIRED | Per method: `method` (`email`, `domain`, `lei-status`, `vc`), `verifiedAt`, and for `domain` and `email` the verified `domain`; for `lei-status` the LEI; for `vc` the credential `profile`. |
-| `nodes[].nodeId` | ✓ | REQUIRED | Stable within the Service. |
-| `nodes[].baseUrl` | ✓ | REQUIRED | HTTPS `$base-url$` of the host system. |
-| `nodes[].connectionEndpoint` | ✓ | CONDITIONAL | REQUIRED where the Node is Credential-Exchange-capable (§6). |
-| `nodes[].conformantVersions` |  | REQUIRED | Base-specification versions, sourced from the PACT Conformance Service. MAY be empty. |
-| `nodes[].provisional` | ✓ | REQUIRED | `true` for a demo on-ramp Node (§4.5). |
+| Field | Requirement | Notes |
+|---|---|---|
+| `companyIds` | REQUIRED | The identifiers the provider publishes for the Entity, in canonical form (§3.4). MUST include the value queried. |
+| `legalName` | OPTIONAL | As known to the provider. |
+| `vouchedBy` | REQUIRED | The registered provider answering, and therefore vouching (§3.5, §4.5). |
+| `assurance.level` | OPTIONAL | One of the levels of §3.5.1, where the provider publishes one. Absence means the provider's vouching alone, and MUST NOT be read as a negative statement. |
+| `assurance.evidence[]` | CONDITIONAL | REQUIRED where a level is published: per method (`email`, `domain`, `lei-status`, `vc`), the time it was last confirmed, and the verified domain, LEI or credential profile (§3.5.2). |
+| `nodes[].nodeId` | REQUIRED | Stable within the provider. |
+| `nodes[].baseUrl` | REQUIRED | HTTPS `$base-url$` of the host system. |
+| `nodes[].connectionEndpoint` | CONDITIONAL | REQUIRED where the Node is Credential-Exchange-capable (§6). |
+| `nodes[].conformantVersions` | REQUIRED | Base-specification versions, from the PACT Conformance Service. MAY be empty. |
+| `nodes[].provisional` | REQUIRED | `true` for a demo on-ramp Node (§4.5). |
 
-1. A Discovery Service MUST NOT include `token_endpoint`, `registration_endpoint`, contact details, or information about the Entity's commercial relationships.
-2. The published assurance MUST satisfy §3.5.2.
+1. A discovery answer MUST NOT include `token_endpoint`, `registration_endpoint`, contact details, or anything about the Entity's commercial relationships.
+2. A provider MUST answer only for Entities it serves and that have opted in (§5.8).
 
-*Example (non-normative, full answer):*
+*Example (non-normative):*
 
 ```json
 {
   "companyIds": ["urn:lei:894500ABCDEF12345678", "urn:pfi:sp-example.com:customer:10442"],
   "legalName": "Example Supplier Ltd",
-  "attestedBy": "urn:pact:discovery-service:7d0c6b8e-2f1a-4b8e-9a51-0c3e1d5a9f10",
+  "vouchedBy": "urn:pact:discovery-service:7d0c6b8e-2f1a-4b8e-9a51-0c3e1d5a9f10",
   "assurance": {
-    "level": "registry-verified",
+    "level": "domain-verified",
     "evidence": [
-      { "method": "domain", "domain": "example-supplier.co.uk", "verifiedAt": "2026-07-02T09:14:00Z" },
-      { "method": "lei-status", "lei": "894500ABCDEF12345678", "verifiedAt": "2026-09-01T03:00:00Z" }
+      { "method": "domain", "domain": "example-supplier.co.uk", "verifiedAt": "2026-07-02T09:14:00Z" }
     ]
   },
   "nodes": [
@@ -176,32 +154,53 @@ A positive discovery answer describes one Entity and the Node(s) through which i
 }
 ```
 
-### 5.8 Visibility
+### 5.8 Visibility (W7)
 
-1. A Discovery Service MUST publish an Entity only where that Entity has opted in to being discoverable. How the Operator collects the opt-in is Operator-internal (§4.5).
-2. A Discovery Service MUST return the same `404` response for an identifier it does not serve and for one it serves but does not publish, so that absence reveals nothing.
-3. An Entity MUST be able to withdraw its opt-in through its Operator. The Service MUST stop publishing the Entity once the withdrawal is processed.
-4. Search or browse by name ("listability" in the 18 June design) is not part of this version. Discovery is by identifier only.
-5. Being discoverable never means being connected. Every connection requires the target's approval (§6).
+1. An Entity is discoverable only where it has **opted in**. The opt-in is held and managed by the Solution Provider that serves it; how the provider collects and records it is not specified.
+2. A provider MUST return the same "no match" result for an identifier it does not serve and one it serves but that has not opted in, so that absence reveals nothing.
+3. An Entity MUST be able to withdraw its opt-in through its provider, and the provider MUST stop publishing it once the withdrawal is processed.
+4. Search or browse by name is not part of this version; discovery is by identifier only.
+5. Being discoverable is never being connected: every connection requires the target's approval (§6).
 
-*Editor's note.* The 18 June design (D12) had resolvability default **on** for authenticated members. This draft makes discoverability an explicit **opt-in**, in line with the WG's stated outcome of *opt-in visibility, promoted but never mandated*, and because under Option B2 there are no "authenticated members" to scope a default to. An Operator may still make opting in the easy default in its own onboarding flow. The WG should confirm.
+### 5.9 Availability, caching and version changes (W10)
 
-### 5.9 Caching and freshness
+1. A requester MAY cache answers according to their HTTP caching headers, and SHOULD resolve again immediately before sending a connection request (§6).
+2. The Discovery Service and the discovery endpoint interface are **versioned**. Every response MUST carry the interface version it was served under.
+3. PACT MUST announce a change that breaks compatibility with the current interface version **before** it takes effect, and MUST allow a transition period in which both versions are served. The length of that period and the channel used to announce it are operational and belong in an annex rather than here.
+4. A provider MUST NOT be removed from the registry solely for not having adopted a new interface version before the announced transition period has ended (§4.3.4).
+5. Non-breaking changes — new optional fields, new error codes — MAY be made without a transition period, and a provider MUST ignore fields it does not recognise.
 
-1. A requester, or the Directory under Option A2, SHOULD cache the Directory listing according to its HTTP caching headers, and MUST refresh it at least every 24 hours so that suspensions (§4.4.2) take effect within that bound.
-2. A requester MAY cache discovery answers according to their HTTP caching headers, and SHOULD resolve again immediately before sending a connection request (§6).
-3. How Operators and parties are told about Directory changes and new versions of the discovery interface is parked item P1 and is not specified in this version.
+*Editor's note.* The WG asked on 30 September for notification of registry and version changes. This version fixes the **policy** — versioned interface, announcement before breaking change, transition period, forward-compatible parsing — and leaves the **mechanism** (a change feed, subscriptions, or a mailing list) to §10 and to operations.
+
+### 5.10 Summary figure
+
+*Non-normative. The detailed sequence, including registration and credential exchange, is in the flow document.*
+
+```mermaid
+sequenceDiagram
+    participant BSP as Buyer's solution provider
+    participant DIR as PACT Discovery Service
+    participant SSP as Supplier's solution provider
+    SSP->>DIR: 1. Register discovery endpoint (domain-verified)
+    BSP->>DIR: 2. Resolve supplier companyId
+    DIR->>SSP: 3. Query discovery endpoint (and every other active endpoint)
+    SSP-->>DIR: Discovery answer, vouched by supplier's provider
+    DIR-->>BSP: Aggregated answers
+    BSP->>SSP: 4. Request connection
+    SSP-->>BSP: 5. Approve, credentials issued (RFC 7591)
+    BSP->>SSP: 6. Exchange PCFs over the V3 API
+    Note over BSP,SSP: PACT is never in the credential or data path
+```
 
 ---
 
 ## Open items carried from this section
 
-- **Option A** — fan-out: client-side or Directory-brokered (§5.5).
-- **Option B** — query authorisation: listed and signed, or public with minimal answer (§5.6). Largely settles parked item P3.
-- Visibility default changed from D12 to explicit opt-in (§5.8), for WG confirmation.
-- Whether a domain-keyed lookup should complement `companyIds` in a later version (§5.2).
-- Batch discovery queries (§5.4 editor's note).
-- Notification of Directory changes and versioning (parked item P1).
+- **Open decision 1** — how a provider authenticates to the Discovery Service (§5.5).
+- **Open decision 2** — how a provider's endpoint authenticates the service, and whether direct provider-to-provider queries are allowed as a fallback (§5.6).
+- Accepted identifier schemes (§3.4) — **open pending the Taiwan UBN proof of concept on 28 October**; the mechanics of naming and matching are specified, the list is not.
+- Transition period length and announcement channel for version changes (§5.9).
+- Batch queries (§5.4).
 
 ---
 
@@ -209,6 +208,7 @@ A positive discovery answer describes one Entity and the Node(s) through which i
 
 - [DATA-EXCHANGE-PROTOCOL] — Technical Specifications for PCF Data Exchange, V3.0.3.
 - [RFC2119], [RFC8174] — requirement-level keywords.
+- [RFC6749] — The OAuth 2.0 Authorization Framework.
 - [RFC8414] — OAuth 2.0 Authorization Server Metadata.
 - [RFC9110] — HTTP Semantics.
 - [RFC9111] — HTTP Caching.

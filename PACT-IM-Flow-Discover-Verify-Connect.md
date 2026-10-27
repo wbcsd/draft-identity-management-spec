@@ -2,6 +2,8 @@
 
 *Draft v0.2 — 16 September 2026. Non-normative figure supporting §4 (Registration), §5 (Node Discoverability) and §6 (Automated Credential Exchange) of the PACT Identity Management addendum. Reflects the 2 September 2026 WG decisions: a **PACT Directory of Discovery Services** holding no buyer or supplier data, **domain ownership inside discovery conformance** for Operators, **LEI and verifiable credentials as optional layers**, and **email/domain assurance attested by each party's own Operator**. **RFC 7591 Dynamic Client Registration** remains the credential-provisioning binding.*
 
+> **Changes in v0.3 (30 September WG).** Discovery now runs through the **PACT Discovery Service**: one query in, fan-out to registered providers' endpoints, aggregated answers back. The service is **private** — only registered providers may query. Phase 3 (how a connection request is authenticated) is still open.
+>
 > **Changes in v0.2.** Registration now happens in two layers: the Operator is listed through conformance, and the supplier is onboarded by its Operator. The root no longer holds delegations keyed by LEI. Discovery fans out across Discovery Services. The GLEIF lookup is optional and performed by the Operator. The three open WG decisions (A fan-out, B query authorisation, C request authentication) are shown as alternatives.
 
 The scenario: a **buyer** wants PCF data from a **supplier** it has never exchanged with. Both are customers of different solution providers: **SP-B** serves the buyer, **SP-S** serves the supplier. Nothing in the flow puts PACT in the credential or data path.
@@ -40,16 +42,12 @@ sequenceDiagram
     Note over B,S: Phase 1 - Discovery by companyIds URN (section 5)
     B->>D: GET discovery-services
     D-->>B: Active listings including SP-S
-    alt Option A1 - client-side fan-out
-        B->>DS: GET discovery for supplier companyId, and in parallel every other listed service
-        DS-->>B: Discovery answer with nodes, assurance, attestedBy SP-S
-    else Option A2 - directory-brokered fan-out
-        B->>D: GET resolve for supplier companyId
-        D->>DS: GET discovery for supplier companyId, and every other listed service
-        DS-->>D: Discovery answer
-        D-->>B: Aggregated answers, nothing retained
-    end
-    Note over B,DS: Option B decides who may query - B1 listed and signed, B2 public with minimal answer
+    B->>D: GET resolve for supplier companyId
+    D->>DS: GET discovery for supplier companyId, and every other registered endpoint
+    DS-->>D: Discovery answer, vouched by SP-S
+    D-->>B: Aggregated answers, nothing retained
+    Note over B,D: Private service - only registered solution providers may query
+    Note over B,D: How the caller authenticates is open decision 1, how the endpoint authenticates the service is open decision 2
     Note over B,DS: Unknown and not-opted-in identifiers both return 404
     B->>S: GET well-known openid-configuration
     S-->>B: token_endpoint and registration_endpoint
@@ -119,7 +117,7 @@ sequenceDiagram
 
 **Phase 0b — Supplier onboarding.** The supplier signs up with SP-S and opts in to being discoverable. SP-S decides how to verify it: typically an email or domain check, optionally an LEI status check or a verifiable credential. SP-S records what it checked and when. None of this goes to PACT.
 
-**Phase 1 — Discovery.** The buyer fetches the Directory listing and looks the supplier up by a `companyIds` URN. Under **Option A1** the buyer queries every listed Discovery Service itself. Under **Option A2** the Directory does that on its behalf and keeps nothing. **Option B** decides whether queries must be signed by a listed Operator or may be public with a minimal answer. A `404` never reveals whether an identifier is unknown or simply not opted in. The buyer then reads the supplier node's existing `/.well-known/openid-configuration` for the token and registration endpoints, so no Directory or Discovery Service ever holds, or goes stale on, those values.
+**Phase 1 — Discovery.** The buyer's provider sends one query to the PACT Discovery Service with a `companyIds` value in canonical form. The service fans it out to every registered discovery endpoint, returns what they answer, and keeps nothing. Only registered providers may query it. How the provider authenticates to the service, and how an endpoint authenticates the service, are the two open decisions. A `404` never reveals whether an identifier is unknown or simply not opted in. The buyer then reads the supplier node's existing `/.well-known/openid-configuration` for the token and registration endpoints, so no Directory or Discovery Service ever holds, or goes stale on, those values.
 
 **Phase 2 — Assurance check.** The answer carries an assurance level (*self-asserted*, *email-verified*, *domain-verified*, *registry-verified*, *credential-verified*), the evidence behind it, and which SP attests it. The buyer's policy decides whether that is enough. For v1, email or domain assurance is enough where both parties agree. A credential can be checked directly where one is bound.
 
@@ -160,7 +158,7 @@ stateDiagram-v2
 ## Notes and open items
 
 - The flow shows a **one-directional** connection: the buyer becomes an OAuth client of the supplier. Where two parties exchange in both directions, the flow runs twice, independently.
-- **Options A, B and C** are open WG decisions. The natural pairings are A1 or A2 with **B2 + C1** (no keys anywhere) or with **B1 + C2** (one key pair per SP, used for both queries and requests). Each combination costs an SP three new PACT-specific methods (§10.1).
+- **Discovery is decided** (central service, private). What remains open: how a provider authenticates to the service (open decision 1), how an endpoint authenticates the service and whether direct provider-to-provider queries are allowed as a fallback (open decision 2), and how a connection request is authenticated (option C). Each combination still costs a provider three new PACT-specific methods (§10.1).
 - Under Option C1 the buyer must itself be discoverable through SP-B. Under C2 it need not be.
 - How parties learn about Directory changes, new versions, and counterparty revocation is parked item P1.
 - Delegated-role credentials (an SP proving it is the authorised exchange agent for a customer) would appear in Phases 0b and 3. They are a named extension, not V1.
