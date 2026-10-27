@@ -54,7 +54,7 @@ Returns all listed Discovery Services, including `suspended` ones, so that clien
 The discovery query. The service performs the fan-out of §5.4 on the requester's behalf. This is the only way a provider resolves an identifier.
 
 1. Query parameter `companyId` (REQUIRED) is a single URN per §3.4, percent-encoded.
-2. The response MUST be `200` with `companyId` and an `answers` array of `DiscoveryAnswer` objects (§5.7), empty where no Service answered. A `404` MUST NOT be used for "no answers".
+2. The response MUST be `200` with `companyId`, an `answers` array of `DiscoveryAnswer` objects (§5.7), and a `timedOutServiceIds` array listing the `serviceId` of each active endpoint that timed out (§5.4). Either array MAY be empty; a non-empty `timedOutServiceIds` means the fan-out was incomplete. A `404` MUST NOT be used for "no answers".
 3. The service MUST apply §5.3 (no index, no retention) and §5.4 (fan-out, timeouts, every positive answer returned, each labelled with the vouching provider).
 4. The caller MUST be a registered Solution Provider (§5.5). Authentication is open decision 1.
 5. The response MUST carry the interface version it was served under (§5.9).
@@ -220,17 +220,23 @@ paths:
         - $ref: '#/components/parameters/CompanyId'
       responses:
         '200':
-          description: Aggregated answers; empty array when none.
+          description: >
+            Aggregated answers and the serviceIds of active discovery endpoints
+            that timed out. timedOutServiceIds is empty when no endpoint timed out.
           content:
             application/json:
               schema:
                 type: object
-                required: [companyId, answers]
+                required: [companyId, answers, timedOutServiceIds]
                 properties:
                   companyId: { $ref: '#/components/schemas/CompanyId' }
                   answers:
                     type: array
                     items: { $ref: '#/components/schemas/DiscoveryAnswer' }
+                  timedOutServiceIds:
+                    type: array
+                    description: serviceIds of active discovery endpoints that timed out; a non-empty array indicates incomplete fan-out.
+                    items: { type: string }
         '400':
           $ref: '#/components/responses/Error'
 
