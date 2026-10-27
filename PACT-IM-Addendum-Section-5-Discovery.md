@@ -179,11 +179,13 @@ A positive answer describes one Entity and the Node(s) through which it can be c
 ```mermaid
 sequenceDiagram
     participant BSP as Buyer's solution provider
-    participant DIR as PACT directory (endpoints only)
+    participant DIR as PACT Discovery Service
     participant SSP as Supplier's solution provider
     SSP->>DIR: 1. Register discovery endpoint (domain-verified)
-    BSP->>DIR: 2. Look up solution provider endpoints
-    BSP->>SSP: 3. Discover supplier node (fan-out to opted-in nodes)
+    BSP->>DIR: 2. Resolve supplier companyId
+    DIR->>SSP: 3. Query discovery endpoint (and every other active endpoint)
+    SSP-->>DIR: Discovery answer, vouched by supplier's provider
+    DIR-->>BSP: Aggregated answers
     BSP->>SSP: 4. Request connection
     SSP-->>BSP: 5. Approve, credentials issued (RFC 7591)
     BSP->>SSP: 6. Exchange PCFs over the V3 API
