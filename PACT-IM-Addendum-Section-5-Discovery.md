@@ -105,7 +105,7 @@ A domain-keyed lookup remains possible as a *complement* in a later version.
 | Who may call | The PACT Discovery Service and nobody else | The service, and any registered provider calling directly |
 | Provider effort | One caller to authenticate; simplest to build and to conformance-test | Must authenticate many callers and check each is registered |
 | Availability | Discovery is unavailable while the service is down; established connections are unaffected (§5.3, requirement 4) | A provider can fall back to querying endpoints directly from the registry listing |
-| Exposure | Only PACT sees which identifiers are looked up | Every provider queried sees the lookup, which is what the private model set out to avoid |
+| Exposure | Every queried provider sees the identifier; central fan-out can hide the requesting provider's identity | Every queried provider sees both the identifier and the authenticated requesting provider |
 
 *Editor's note.* The two open decisions interact: 1b and 2b share one signing mechanism, while 1a and 2a together are the smallest thing a provider has to build. The WG may find them easier to decide as a pair.
 
