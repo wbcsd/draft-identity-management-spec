@@ -222,7 +222,7 @@ Resolved in a design review on 18 June 2026 (Gertjan + Claude), grounded in the 
 | **D13** | Credential mechanism / auth | **(b) vLEI for identity/trust establishment, OAuth 2.0 for runtime API auth** (§5.5 unchanged). Credential exchange is **peer-to-peer after discovery** (PACT never in the credential/data path). Abstract connection/credential lifecycle is normative; **RFC 7591 (OAuth 2.0 Dynamic Client Registration) is the RECOMMENDED binding**; vLEI-native / mTLS bindings left open. **Rotate** and **revoke** defined. Approval manual in V1, policy-based auto-approval later. |
 | **vLEI granularity** | Verified-tier credential scope | **(a) entity-level for V1**; **(b) entity + delegated role** as the named extension (for SP-node delegated authority); **person-level out of scope** (no natural-person data in PCF exchange). |
 | **D14** | Conformance granularity | **(a) separable capability classes** — *Discoverable Node*, *Discovery Service Provider*, *Credential-Exchange-capable Node* — with verification as a cross-cutting attribute. |
-| **D15** | Versioning | Companion document **referenced from V3** (provisional; revisit at §10). |
+| **D15** | Versioning | Companion document **referenced from V3**, with its own `MAJOR.MINOR` interface version independent of the DEP (provisional; proposal in §12.5). |
 
 **Still open / deferred:** policy-based auto-approval rules (post-V1); the "invite a non-member supplier to join" flow (treat as informative/product, not normative); precise schema of the discovery API methods; whether IM normatively *requires* audit logging (§5.3 leaves logging out of scope). 
 
@@ -238,7 +238,7 @@ Recorded from the session recap circulated on 4 September 2026. These take prece
 | **W4** | Party assurance | **Email/domain ownership is sufficient** identity assurance for buyers/suppliers for now, where both parties agree. | Extends Ambition, D4 |
 
 **Parked on 2 September:**
-- **P1** — How SPs/parties are notified of registry updates and new-version roll-outs (versioning approach TBD).
+- **P1** — How SPs/parties are notified of registry updates and new-version roll-outs. *Proposal of 28 October in §12.5.*
 - **P2** — Whether an invoice-based mechanism (VAT / Chamber-of-Commerce number as PACT identifier) is practical; test with a real enterprise supply chain.
 - **P3** — Whether registry access is restricted to conformant SPs or public.
 
@@ -271,6 +271,21 @@ Confirmed in session, broadcast to all solution providers on 5 October with a tw
 | **W10** | Version changes | Notification of registry and interface version changes to be added to the spec. | New §5.9 (policy); mechanism deferred to §10 and operations |
 
 **Still open after 30 September:** how a provider authenticates to the discovery service (§5.5, open decision 1); how a provider's endpoint authenticates the service and whether direct provider-to-provider queries are allowed as a fallback (§5.6, open decision 2); how a connection request is authenticated (§6.4, option C); and **which identifier schemes are accepted** (§3.4.1) — open pending the Taiwan UBN proof of concept on **28 October**, and explicitly *not* covered by the 19 October objection window.
+
+### 12.5 Versioning — proposal of 28 October 2026, for WG confirmation
+
+Implements W10 and closes parked item P1, subject to the WG. Drafted in §4.3.2, §5.9–§5.11, §6 and §10.
+
+| # | Proposal | Where |
+|---|---|---|
+| **V1** | The IM interface is versioned `MAJOR.MINOR`, **independently of the Data Exchange Protocol**. Minor versions are backwards-compatible; a breaking change raises the major version. | §5.9 |
+| **V2** | The major version is in the path, `/im/{major}/…`, with no `v`. The full version is returned in a `PACT-IM-Version` header on every response. | §5.9, §10.2.4 |
+| **V3** | **Fixed path pattern** for Solution Providers: `{discoveryBaseUrl}/im/{major}/discovery` and `{baseUrl}/im/{major}/connections`. The listing field `discoveryEndpoint` becomes `discoveryBaseUrl`; the discovery-answer field `connectionEndpoint` is dropped. PACT's own paths follow the same pattern (`/im/{major}/resolve`, `/im/{major}/discovery-services`). | §4.3.2, §5.7, §6.3, §10 |
+| **V4** | Providers **self-declare** the major versions they support (`interfaceVersions`) in their listing and per Node. The PACT Discovery Service calls each provider at the highest common major version and translates between versions, so a requester and a target need not share one. | §5.9.1 |
+| **V5** | Notification: an unversioned `GET /im/service-info`; `Deprecation` (RFC 9745) and `Sunset` (RFC 8594) headers with a `Link` to release notes; and mail to the listing's `contact` on changes to the provider's own listing status, to the interface versions, and to service credentials. Other providers' changes are not notified. | §5.10, §10.2.3 |
+| **V6** | Discovery data (who serves which company) is **not versioned and not pushed**. A requester MUST re-resolve before a connection request; caching headers are passed through unchanged. | §5.11 |
+
+**For the WG to decide:** the notice period before a major version is withdrawn, and how many major versions PACT supports at once (e.g. current and previous). Both are placeholders in §5.9.2. The three notified event types in V5 are an editorial default.
 
 ### 12.3 Open decisions for the Working Group (drafted side by side)
 

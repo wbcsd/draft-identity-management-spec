@@ -1,8 +1,14 @@
 # PACT Identity Management Addendum — §5 Node Discoverability (Draft)
 
-*Draft v0.2 — 14 October 2026. Normative text for the Node Discoverability section of the PACT Identity Management addendum to [DATA-EXCHANGE-PROTOCOL] V3. Builds on §3 (Identity Model) and §4 (Registration). Implements the decisions of the Technology Working Group session of **30 September 2026**: PACT operates a **central discovery service** that fans a query out to the discovery endpoints of registered Solution Providers, and the service is **private** — only registered Solution Providers may query it (see the addendum outline, §12.4). Editorial conventions follow the base specification: the key words MUST, MUST NOT, SHOULD, SHOULD NOT, MAY, REQUIRED, and OPTIONAL are to be interpreted as in [RFC2119]/[RFC8174] when, and only when, in all capitals.*
+*Draft v0.3 — 28 October 2026. Normative text for the Node Discoverability section of the PACT Identity Management addendum to [DATA-EXCHANGE-PROTOCOL] V3. Builds on §3 (Identity Model) and §4 (Registration). Implements the decisions of the Technology Working Group session of **30 September 2026**: PACT operates a **central discovery service** that fans a query out to the discovery endpoints of registered Solution Providers, and the service is **private** — only registered Solution Providers may query it (see the addendum outline, §12.4). Editorial conventions follow the base specification: the key words MUST, MUST NOT, SHOULD, SHOULD NOT, MAY, REQUIRED, and OPTIONAL are to be interpreted as in [RFC2119]/[RFC8174] when, and only when, in all capitals.*
 
 > **Status of this section.** Working draft for Technology Working Group review.
+>
+> **Changes in v0.3 (versioning proposal, 28 October 2026 — for WG confirmation).**
+> - §5.9 defines **IM interface versions**: `MAJOR.MINOR`, the major in the path (`/im/{major}/…`), the full version in a `PACT-IM-Version` header; providers declare the majors they support and the service calls each at the highest common one.
+> - §5.10 defines **how providers are told** about changes: a service-info document, `Deprecation`/`Sunset` headers, and mail to the registered contact.
+> - §5.11 settles **changes to discovery data**: not versioned, not pushed — re-resolve before connecting.
+> - The figures for notice period and number of supported majors are **left to the WG**.
 >
 > **Changes in v0.2 (following the 30 September WG session).**
 > - The two options of v0.1 are gone. **Central fan-out is the design** (W5) and the service is **private** (W6). Both options and the reasoning behind the choice are recorded in the decision log (§12.4), not here.
@@ -122,7 +128,7 @@ A positive answer describes one Entity and the Node(s) through which it can be c
 | `assurance.evidence[]` | CONDITIONAL | REQUIRED where a level is published: per method (`email`, `domain`, `lei-status`, `vc`), the time it was last confirmed, and the verified domain, LEI or credential profile (§3.5.2). |
 | `nodes[].nodeId` | REQUIRED | Stable within the provider. |
 | `nodes[].baseUrl` | REQUIRED | HTTPS `$base-url$` of the host system. |
-| `nodes[].connectionEndpoint` | CONDITIONAL | REQUIRED where the Node is Credential-Exchange-capable (§6). |
+| `nodes[].interfaceVersions` | CONDITIONAL | Major versions of the IM connection interface the Node supports (§5.9.1). REQUIRED where the Node is Credential-Exchange-capable (§6); its connection endpoint is then `{baseUrl}/im/{major}/connections`. |
 | `nodes[].conformantVersions` | REQUIRED | Base-specification versions, from the PACT Conformance Service. MAY be empty. |
 | `nodes[].provisional` | REQUIRED | `true` for a demo on-ramp Node (§4.5). |
 
@@ -146,7 +152,7 @@ A positive answer describes one Entity and the Node(s) through which it can be c
     {
       "nodeId": "node-10442-eu",
       "baseUrl": "https://pact.sp-example.com/tenants/10442",
-      "connectionEndpoint": "https://pact.sp-example.com/tenants/10442/3/connections",
+      "interfaceVersions": ["1"],
       "conformantVersions": ["3.0"],
       "provisional": false
     }
@@ -162,17 +168,49 @@ A positive answer describes one Entity and the Node(s) through which it can be c
 4. Search or browse by name is not part of this version; discovery is by identifier only.
 5. Being discoverable is never being connected: every connection requires the target's approval (§6).
 
-### 5.9 Availability, caching and version changes (W10)
+### 5.9 Interface versions (W10)
 
-1. A requester MAY cache answers according to their HTTP caching headers, and SHOULD resolve again immediately before sending a connection request (§6).
-2. The Discovery Service and the discovery endpoint interface are **versioned**. Every response MUST carry the interface version it was served under.
-3. PACT MUST announce a change that breaks compatibility with the current interface version **before** it takes effect, and MUST allow a transition period in which both versions are served. The length of that period and the channel used to announce it are operational and belong in an annex rather than here.
-4. A provider MUST NOT be removed from the registry solely for not having adopted a new interface version before the announced transition period has ended (§4.3.4).
-5. Non-breaking changes — new optional fields, new error codes — MAY be made without a transition period, and a provider MUST ignore fields it does not recognise.
+1. The interfaces defined by this addendum — the Discovery Service interface (§10.2), the provider discovery endpoint (§10.3) and the Node connection interface (§10.4) — are versioned together as the **IM interface**, with a version of the form `MAJOR.MINOR`.
+2. A **minor** version adds only backwards-compatible changes: new optional fields, new optional query parameters, new error codes. A **major** version is any change that can break a conforming implementation of the previous major version.
+3. The major version is carried in the **path**: every IM interface path has the form `/im/{major}/…` (§10). The full version is carried in the `PACT-IM-Version` response header on every response.
+4. Implementations MUST ignore fields they do not recognise, so that a minor version can be adopted without coordination.
+5. The IM interface is versioned **independently of the base specification**. A change to the base specification's data model or actions does not by itself change the IM interface version, and a change to the IM interface does not change the base specification's.
 
-*Editor's note.* The WG asked on 30 September for notification of registry and version changes. This version fixes the **policy** — versioned interface, announcement before breaking change, transition period, forward-compatible parsing — and leaves the **mechanism** (a change feed, subscriptions, or a mailing list) to §10 and to operations.
+#### 5.9.1 Coexistence of versions
 
-### 5.10 Summary figure
+1. A provider MUST declare in its registry listing the major versions its discovery endpoint supports (`interfaceVersions`, §4.3.2). The declaration is the provider's own; it is not separately tested per version.
+2. The Discovery Service MUST call each provider at the highest major version that both the service and the provider support, and MUST NOT call a provider at a major version it has not declared.
+3. A requester MAY call the Discovery Service at any major version the service supports. The service MUST translate between versions when fanning out, so that a requester and a target provider need not support the same major version.
+4. A discovery answer lists, per Node, the major versions of the connection interface that Node supports (`nodes[].interfaceVersions`, §5.7). A Requester MUST send a connection request at a major version the Target declares (§6.3).
+
+#### 5.9.2 Breaking changes
+
+1. PACT MUST announce a new major version at least **[notice period — WG to decide]** before the previous major version is withdrawn.
+2. The Discovery Service MUST support at least **[number of major versions, e.g. current and previous — WG to decide]** at any time.
+3. A provider MUST NOT be removed from the registry for not supporting a new major version before the previous one is withdrawn (§4.3.4).
+4. Once a major version is withdrawn, the service stops calling providers that declare only that version. Such a provider is not suspended, but its customers are not discoverable until it declares a supported version.
+
+### 5.10 Notification of changes
+
+1. The Discovery Service MUST publish a machine-readable **service-info** document (§10.2.3) listing the IM interface versions it supports and, for each deprecated version, the date it was deprecated and the date it will be withdrawn, with a link to human-readable release notes.
+2. On every response served under a deprecated version, the service MUST include a `Deprecation` header [RFC9745] and, once a withdrawal date is fixed, a `Sunset` header [RFC8594], each with a `Link` to the release notes.
+3. PACT MUST notify each listed provider by email, at its registered `contact` (§4.3.2), of:
+   - changes to **its own listing**: suspension, reinstatement, a domain re-verification coming due, and repeated failed liveness checks (§4.4);
+   - a new **IM interface version**, a deprecation, and an approaching withdrawal date (§5.9.2);
+   - any change to what it needs in order to **call the service**, such as credential or key rotation (§5.5).
+4. Changes to other providers' listings are not notified. Under central fan-out a provider never calls another provider directly, so it has no use for them.
+5. A provider MUST keep its `contact` current (§4.4.1).
+
+*Editor's note.* No change feed or subscription is defined in this version. The service-info document and the standard headers make changes visible to software; the mail makes them visible to people. A feed can be added later as a minor version.
+
+### 5.11 Changes to discovery data
+
+1. Discovery answers are **not versioned and changes to them are not pushed**. What a provider publishes — which Nodes serve an Entity, which identifiers it carries, whether it has opted in — is read fresh each time it is resolved.
+2. A provider SHOULD send HTTP caching headers [RFC9111] with each answer, and the Discovery Service MUST pass them on unchanged.
+3. A requester MAY reuse an answer within its caching lifetime, but MUST resolve again immediately before sending a connection request (§6), and SHOULD resolve again when a connection or token request fails in a way that suggests the Node has moved.
+4. When an Entity withdraws its opt-in or leaves its provider, later resolutions return no match (§5.8). Connections already established are not affected (§4.4.3); ending them belongs to the connection lifecycle (§6.7).
+
+### 5.12 Summary figure
 
 *Non-normative. The detailed sequence, including registration and credential exchange, is in the flow document.*
 
@@ -199,7 +237,8 @@ sequenceDiagram
 - **Open decision 1** — how a provider authenticates to the Discovery Service (§5.5).
 - **Open decision 2** — how a provider's endpoint authenticates the service, and whether direct provider-to-provider queries are allowed as a fallback (§5.6).
 - Accepted identifier schemes (§3.4) — **open pending the Taiwan UBN proof of concept on 28 October**; the mechanics of naming and matching are specified, the list is not.
-- Transition period length and announcement channel for version changes (§5.9).
+- Notice period before a major version is withdrawn, and the number of major versions supported at once (§5.9.2) — **figures for the WG**.
+- Whether a change feed or subscriptions are wanted on top of service-info, headers and mail (§5.10).
 - Batch queries (§5.4).
 
 ---
@@ -213,3 +252,5 @@ sequenceDiagram
 - [RFC9110] — HTTP Semantics.
 - [RFC9111] — HTTP Caching.
 - [RFC9421] — HTTP Message Signatures.
+- [RFC8594] — The Sunset HTTP Header Field.
+- [RFC9745] — The Deprecation HTTP Response Header Field.

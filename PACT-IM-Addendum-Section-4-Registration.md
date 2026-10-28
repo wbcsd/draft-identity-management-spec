@@ -63,7 +63,8 @@ A Directory listing MUST carry:
 | `operator.companyIds` | REQUIRED | Array of URNs per §3.4 identifying the Operator as an Entity. |
 | `operator.name` | REQUIRED | The Operator's legal or trading name. |
 | `domains` | REQUIRED | One or more Internet domains whose control the Operator demonstrated (§4.3.3). |
-| `discoveryEndpoint` | REQUIRED | HTTPS URL of the Discovery Service (§10). MUST be under one of `domains`. |
+| `discoveryBaseUrl` | REQUIRED | HTTPS base URL of the Operator's discovery endpoint. MUST be under one of `domains`. The Discovery Service calls `{discoveryBaseUrl}/im/{major}/discovery` (§10.3). |
+| `interfaceVersions` | REQUIRED | The major versions of the IM interface the discovery endpoint supports, e.g. `["1"]` (§5.9.1). Declared by the Operator. |
 | `discoveryConformance` | REQUIRED | Result of the discovery conformance tests: test-suite version and date passed (§4.3.4). |
 | `conformantVersions` | REQUIRED | Base-specification versions for which the Operator's solution holds PACT conformance. MAY be empty (§4.3.5). |
 | `domainVerifiedAt` | REQUIRED | Time the domain challenge last succeeded. |
@@ -82,9 +83,9 @@ Before a Discovery Service is listed, the PACT Conformance Service MUST verify t
    - an HTTPS resource at `https://<domain>/.well-known/pact-challenge/<token-id>` whose body is the token, served with a valid TLS certificate for `<domain>`.
 2. Tokens MUST be single-use and MUST expire, RECOMMENDED within 7 days of issue.
 3. The Conformance Service MUST record the method used and the time of success, and the Directory MUST expose the latter as `domainVerifiedAt`.
-4. Domain control MUST be re-verified on every change to `domains`, `discoveryEndpoint`, or `jwksUri`, and at every conformance re-test.
+4. Domain control MUST be re-verified on every change to `domains`, `discoveryBaseUrl`, or `jwksUri`, and at every conformance re-test.
 
-*Editor's note.* This is the v0.1 "proof of endpoint control" moved to the level where the WG placed it. Binding `discoveryEndpoint` (and, where adopted, `jwksUri`) to a verified domain means an attacker cannot list a Discovery Service that impersonates an existing Operator. It does not stop a *listed* Operator from publishing false information about its own customers. That risk is contained by accountability and delisting (§4.4.2), not by cryptography. The `_pact-challenge` label and the `.well-known` suffix need registering or confirming; that is for §10.
+*Editor's note.* This is the v0.1 "proof of endpoint control" moved to the level where the WG placed it. Binding `discoveryBaseUrl` (and, where adopted, `jwksUri`) to a verified domain means an attacker cannot list a Discovery Service that impersonates an existing Operator. It does not stop a *listed* Operator from publishing false information about its own customers. That risk is contained by accountability and delisting (§4.4.2), not by cryptography. The `_pact-challenge` label and the `.well-known` suffix need registering or confirming; that is for §10.
 
 #### 4.3.4 Conformance-gated listing
 
@@ -105,8 +106,8 @@ Before a Discovery Service is listed, the PACT Conformance Service MUST verify t
 
 #### 4.4.1 Update
 
-1. An Operator MUST keep `discoveryEndpoint`, `domains`, `contact`, and (where applicable) `jwksUri` current.
-2. A change to `domains`, `discoveryEndpoint`, or `jwksUri` MUST trigger re-verification (§4.3.3). The changed value MUST NOT be published until re-verification succeeds; the previous value remains in force meanwhile.
+1. An Operator MUST keep `discoveryBaseUrl`, `interfaceVersions`, `domains`, `contact`, and (where applicable) `jwksUri` current. The `contact` is where PACT sends the notices of §5.10.
+2. A change to `domains`, `discoveryBaseUrl`, or `jwksUri` MUST trigger re-verification (§4.3.3). The changed value MUST NOT be published until re-verification succeeds; the previous value remains in force meanwhile.
 3. The Directory SHOULD run a periodic liveness check against listed Discovery Services and SHOULD expose the result. It MUST NOT delist a Service solely because it is temporarily unreachable.
 
 #### 4.4.2 Suspension
@@ -136,7 +137,7 @@ An Operator decides how it onboards the Entities it serves: what it asks for, wh
 1. A Discovery Service MUST answer only for Entities whose Node(s) its Operator runs, or for itself in the SP-of-one case.
 2. A Discovery Service MUST publish an Entity only where that Entity has opted in to being discoverable (§5.8).
 3. Every answer MUST identify the vouching Operator. Where assurance is also published it MUST satisfy §3.5.2: it reflects checks that Operator actually performed or credentials it verified, and carries per-method timestamps. Publishing assurance is OPTIONAL; publishing an unverified level is not.
-4. For each Node, a Discovery Service MUST publish at least `baseUrl` (HTTPS) and, where the Node is Credential-Exchange-capable, `connectionEndpoint`. A Node's `token_endpoint` and `registration_endpoint` MUST NOT be published as authoritative. Both are read from the Node's own `$base-url$/.well-known/openid-configuration` (§5.7).
+4. For each Node, a Discovery Service MUST publish at least `baseUrl` (HTTPS) and, where the Node is Credential-Exchange-capable, the major versions of the connection interface it supports (`interfaceVersions`, §5.9.1); its connection endpoint is then `{baseUrl}/im/{major}/connections`. A Node's `token_endpoint` and `registration_endpoint` MUST NOT be published as authoritative. Both are read from the Node's own `$base-url$/.well-known/openid-configuration` (§5.7).
 5. A Node that supports automated credential provisioning MUST advertise a `registration_endpoint` in that well-known document, as defined by [RFC8414]/[RFC7591]. Its presence is the machine-readable signal that the Node implements the *Credential-Exchange-capable Node* conformance class (§9).
 6. A Discovery Service MAY mark a Node as `provisional` (a demo Node offered as an on-ramp to Entities without exchange tooling). A provisional Node MUST be marked as such in every response.
 7. When an Entity ceases to be served, or withdraws its opt-in, the Discovery Service MUST stop publishing it. As in §4.4.3, this is not credential revocation.
@@ -147,7 +148,7 @@ An Operator decides how it onboards the Entities it serves: what it asks for, wh
 
 Listing and registration produce exactly the metadata that automated credential exchange (§6) consumes, and nothing more:
 
-1. The PACT Directory lists Discovery Services. A Discovery Service resolves a `companyIds` value to Node `baseUrl` and `connectionEndpoint` (§5).
+1. The PACT Directory lists Discovery Services. A Discovery Service resolves a `companyIds` value to a Node's `baseUrl` and the interface versions it supports (§5).
 2. The Node's own well-known document supplies `token_endpoint` and, where supported, `registration_endpoint` (§4.5).
 3. The two Nodes then establish trust and provision credentials **directly** (§6). Neither the Directory nor any Discovery Service is a party to that exchange. An established connection MUST NOT depend on the Directory or any Discovery Service being online.
 4. The credentials so provisioned are the `client_id` and `client_secret` that the base specification's §5.5 client-credentials flow already consumes. This addendum introduces no change to that token flow.
@@ -163,7 +164,7 @@ Listing and registration produce exactly the metadata that automated credential 
 | Condition | Meaning |
 |---|---|
 | `DomainControlNotProven` | The domain challenge (§4.3.3) was not completed for one or more domains. |
-| `EndpointNotUnderVerifiedDomain` | `discoveryEndpoint` or `jwksUri` is not under a verified domain. |
+| `EndpointNotUnderVerifiedDomain` | `discoveryBaseUrl` or `jwksUri` is not under a verified domain. |
 | `DiscoveryConformanceNotPassed` | The applicant has not passed the current discovery conformance tests (§4.3.4). |
 | `OperatorAlreadyListed` | A listing with an overlapping `operator.companyIds` value already exists. |
 

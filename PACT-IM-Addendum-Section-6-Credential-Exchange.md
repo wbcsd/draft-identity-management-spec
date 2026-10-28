@@ -24,13 +24,13 @@ The flow has four steps: **request** (§6.3), **approve** (§6.5), **provision**
 
 ### 6.2 Preconditions
 
-1. The Requester has resolved the Target through discovery (§5.4) or already knows the Target's `baseUrl` and `connectionEndpoint`.
+1. The Requester has resolved the Target through discovery (§5.4) or already knows the Target's `baseUrl` and the IM interface versions its Node supports (§5.9.1).
 2. The Target's `$base-url$/.well-known/openid-configuration` advertises a `registration_endpoint` [RFC8414]. A Target without one is not Credential-Exchange-capable, and the Requester MUST fall back to manual credential exchange.
 3. A Node that sends connection requests MUST itself be served by an Operator listed in the PACT Directory. This lets the Target check the Requester against a verified Operator (§6.4).
 
 ### 6.3 Connection request
 
-The Requester sends `POST {Target connectionEndpoint}` (§10.4) with:
+The Requester sends `POST {Target baseUrl}/im/{major}/connections` (§10.4), at a major version the Target declares (§5.9.1), with:
 
 | Field | Requirement | Notes |
 |---|---|---|
@@ -55,8 +55,8 @@ A connection request arrives before any credentials exist, so it cannot be authe
 
 The request itself is unsigned. Authenticity comes from where the approval is sent.
 
-- C1-1. Before approving, the Target MUST resolve `requester.companyIds` through the PACT Discovery Service (§5.4, §10.2.2), and MUST confirm that an answer vouched by `requester.serviceId` lists `requester.nodeId` with a `connectionEndpoint`. Otherwise it MUST reject the request with `RequesterNotResolvable`.
-- C1-2. On a decision, the Target MUST send `POST {Requester connectionEndpoint}/{connectionId}/decision` (§10.4), using the `connectionEndpoint` obtained in C1-1 and never an endpoint supplied in the request. On approval, the body carries the initial access token (§6.6).
+- C1-1. Before approving, the Target MUST resolve `requester.companyIds` through the PACT Discovery Service (§5.4, §10.2.2), and MUST confirm that an answer vouched by `requester.serviceId` lists `requester.nodeId` with at least one supported interface version. Otherwise it MUST reject the request with `RequesterNotResolvable`.
+- C1-2. On a decision, the Target MUST send `POST {Requester baseUrl}/im/{major}/connections/{connectionId}/decision` (§10.4), using the `baseUrl` and a major version obtained in C1-1 and never an endpoint supplied in the request. On approval, the body carries the initial access token (§6.6).
 - C1-3. The Requester MUST reject, with `404`, a decision for a `connectionId` it did not itself create. It SHOULD log such events as a possible impersonation attempt.
 - C1-4. The Requester MUST NOT use any endpoint contained in a decision message. It reads the Target's `registration_endpoint` from the Target's own well-known document (§6.2).
 
@@ -66,7 +66,7 @@ The request itself is unsigned. Authenticity comes from where the approval is se
 
 - C2-1. The connection request MUST be signed with HTTP Message Signatures [RFC9421], covering at least `@method`, `@target-uri`, `content-digest` [RFC9530], and a `created` timestamp, with a key published at the `jwksUri` of the listing for `requester.serviceId` (§4.3.2).
 - C2-2. The Target MUST verify the signature against that `jwksUri` and MUST reject the request with `InvalidSignature` if verification fails or the listing is not `active`.
-- C2-3. The Requester obtains the decision by polling `GET {Target connectionEndpoint}/{connectionId}` (§10.4), with each poll signed as in C2-1. The Target MUST return `status` and, once approved, the initial access token until the token has been used or has expired.
+- C2-3. The Requester obtains the decision by polling `GET {Target baseUrl}/im/{major}/connections/{connectionId}` (§10.4), with each poll signed as in C2-1. The Target MUST return `status` and, once approved, the initial access token until the token has been used or has expired.
 - C2-4. The Target SHOULD return `Retry-After` on pending polls, and the Requester MUST respect it.
 - C2-5. The Target MAY also resolve the Requester through discovery as in C1-1. It is not required to, because the signature already binds the request to an accountable, listed Operator.
 
@@ -78,7 +78,7 @@ The request itself is unsigned. Authenticity comes from where the approval is se
 |---|---|---|
 | **Cryptography for SPs** | None beyond TLS. | Key pair, JWKS publication, request signing and verification. |
 | **Can someone send requests in another party's name?** | Yes, but they are useless: they cannot get the token. The Target's approver may still see nuisance requests. | No. |
-| **Requester must be discoverable** | Yes. The Target has to resolve the Requester's `connectionEndpoint`, so a party that wants to connect but not be found cannot use this option. | No. Being served by a listed Operator is enough. |
+| **Requester must be discoverable** | Yes. The Target has to resolve the Requester's Node, so a party that wants to connect but not be found cannot use this option. | No. Being served by a listed Operator is enough. |
 | **Decision delivery** | Pushed as soon as the owner decides, even days later. | Polled. Manual approval may take days, so polling must back off. |
 | **New Node methods** | Target: `POST connections`. Requester: `POST connections/{id}/decision`. Every Credential-Exchange-capable Node implements both. | Target: `POST connections`, `GET connections/{id}`. |
 | **Reuse** | None. | The same keys serve the signing variants of open decisions 1 and 2 (§5.5, §5.6), and prepare for credential-bound signing (§3.7.4). |
