@@ -14,14 +14,15 @@ The addendum adds interfaces in three places. Only the second and third are impl
 
 | Where | Operation | Implemented by | Status | PACT-specific? |
 |---|---|---|---|---|
-| PACT Discovery Service | `GET /v1/resolve?companyId=` | PACT | normative | yes |
-| PACT Discovery Service | `GET /v1/discovery-services` | PACT | normative — registry listing, readable by registered providers | yes |
-| PACT Discovery Service | `GET /v1/discovery-services/{serviceId}` | PACT | normative | yes |
+| PACT Discovery Service | `GET /im/service-info` | PACT | normative — unversioned, lists supported and deprecated versions (§5.10) | yes |
+| PACT Discovery Service | `GET /im/{major}/resolve?companyId=` | PACT | normative | yes |
+| PACT Discovery Service | `GET /im/{major}/discovery-services` | PACT | normative — registry listing, readable by registered providers | yes |
+| PACT Discovery Service | `GET /im/{major}/discovery-services/{serviceId}` | PACT | normative | yes |
 | PACT-operated services | `/.well-known/openid-configuration` and the token endpoint it names | PACT | normative (§10.5.1) | no — [RFC8414]/[RFC6749] |
-| Solution Provider | `GET /3/discovery?companyId=` | **SP** | normative — called by the Discovery Service | **yes** |
-| Target Node | `POST /3/connections` | **SP** | normative | **yes** |
-| Target Node | `GET /3/connections/{connectionId}` | **SP** | option C2 only | **yes** |
-| Requester Node | `POST /3/connections/{connectionId}/decision` | **SP** | option C1 only | **yes** |
+| Solution Provider | `GET /im/{major}/discovery?companyId=` | **SP** | normative — called by the Discovery Service | **yes** |
+| Target Node | `POST /im/{major}/connections` | **SP** | normative | **yes** |
+| Target Node | `GET /im/{major}/connections/{connectionId}` | **SP** | option C2 only | **yes** |
+| Requester Node | `POST /im/{major}/connections/{connectionId}/decision` | **SP** | option C1 only | **yes** |
 | Target Node | `POST {registration_endpoint}` | SP's authorisation server | normative | no — [RFC7591] |
 | Target Node | `GET`/`PUT`/`DELETE {registration_client_uri}` | SP's authorisation server | normative | no — [RFC7592] |
 | Solution Provider | `jwks_uri` publication | SP | only if signing is chosen (§5.5, §5.6, §6.4) | no — [RFC7517] |
@@ -32,7 +33,7 @@ The addendum adds interfaces in three places. Only the second and third are impl
 |---|---|
 | **1** — how a provider authenticates to the Discovery Service (§5.5) | Credentials: a token request before each query. Signing: `Signature`/`Signature-Input` headers and a published `jwks_uri` |
 | **2** — how a provider's endpoint authenticates the service (§5.6) | Service only: verify one caller. Direct fallback as well: verify any registered provider, and accept queries from them |
-| **C** — connection request authentication (§6.4) | C1 adds `POST /3/connections/{id}/decision` on the requester; C2 adds `GET /3/connections/{id}` on the target |
+| **C** — connection request authentication (§6.4) | C1 adds `POST /im/{major}/connections/{id}/decision` on the requester; C2 adds `GET /im/{major}/connections/{id}` on the target |
 
 Every combination still costs a provider three PACT-specific methods.
 
@@ -40,16 +41,16 @@ Every combination still costs a provider three PACT-specific methods.
 
 *Implemented by PACT. Base URL `$directory-url$` (to be assigned).*
 
-#### 10.2.1 `GET /v1/discovery-services`
+#### 10.2.1 `GET /im/{major}/discovery-services`
 
 Returns all listed Discovery Services, including `suspended` ones, so that clients can stop using them (§5.4).
 
 1. The response MUST be `200` with a `data` array of `DiscoveryService` objects (§10.8).
 2. The Directory MUST send HTTP caching headers [RFC9111], including `ETag`. Clients SHOULD make conditional requests.
 3. The listing is readable by registered Solution Providers. Whether any part of it is public is an operational choice and is not specified here.
-4. Withdrawn listings MUST NOT be returned. `GET /v1/discovery-services/{serviceId}` for a withdrawn `serviceId` MUST return `410 Gone`.
+4. Withdrawn listings MUST NOT be returned. `GET /im/{major}/discovery-services/{serviceId}` for a withdrawn `serviceId` MUST return `410 Gone`.
 
-#### 10.2.2 `GET /v1/resolve`
+#### 10.2.2 `GET /im/{major}/resolve`
 
 The discovery query. The service performs the fan-out of §5.4 on the requester's behalf. This is the only way a provider resolves an identifier.
 
@@ -57,13 +58,27 @@ The discovery query. The service performs the fan-out of §5.4 on the requester'
 2. The response MUST be `200` with `companyId`, an `answers` array of `DiscoveryAnswer` objects (§5.7), and a `timedOutServiceIds` array listing the `serviceId` of each active endpoint that timed out (§5.4). Either array MAY be empty; a non-empty `timedOutServiceIds` means the fan-out was incomplete. A `404` MUST NOT be used for "no answers".
 3. The service MUST apply §5.3 (no index, no retention) and §5.4 (fan-out, timeouts, every positive answer returned, each labelled with the vouching provider).
 4. The caller MUST be a registered Solution Provider (§5.5). Authentication is open decision 1.
-5. The response MUST carry the interface version it was served under (§5.9).
+5. The response MUST carry the full interface version in the `PACT-IM-Version` header (§5.9).
+
+#### 10.2.3 `GET /im/service-info`
+
+The one unversioned path, so that a client can find out which versions exist before choosing one (§5.10).
+
+1. The response MUST be `200` with a `ServiceInfo` object (§10.8): the current IM interface version, the major versions supported, and for each deprecated version its deprecation date, withdrawal date once fixed, and a link to release notes.
+2. The endpoint MUST be readable without authentication.
+
+#### 10.2.4 Version headers on every IM response
+
+Applies to every operation in §10.2–§10.4, whoever implements it.
+
+1. Every response MUST carry `PACT-IM-Version: {MAJOR.MINOR}` — the full version it was served under (§5.9).
+2. A response served under a deprecated major version MUST carry `Deprecation` [RFC9745] and, once a withdrawal date is fixed, `Sunset` [RFC8594], each with a `Link` header pointing to the release notes (§5.10). This applies to the PACT Discovery Service; Solution Providers do not need to set them.
 
 ### 10.3 Discovery Service interface
 
-*Implemented by every listed Operator, including SPs-of-one. Its URL is the `discoveryEndpoint` of the listing. `$base-url$/3/discovery` is RECOMMENDED.*
+*Implemented by every listed Operator, including SPs-of-one. Its URL is `{discoveryBaseUrl}/im/{major}/discovery`, where `discoveryBaseUrl` comes from the listing (§4.3.2) and `major` is the version the service calls at (§5.9.1).*
 
-#### 10.3.1 `GET {discoveryEndpoint}?companyId={urn}`
+#### 10.3.1 `GET {discoveryBaseUrl}/im/{major}/discovery?companyId={urn}`
 
 1. Query parameter `companyId` (REQUIRED) is a single URN, percent-encoded.
 2. Where the provider publishes an Entity whose `companyIds` contains the value, it MUST return `200` with one `DiscoveryAnswer` (§5.7).
@@ -71,14 +86,14 @@ The discovery query. The service performs the fan-out of §5.4 on the requester'
 4. A malformed `companyId` MUST return `400` with `BadRequest`.
 5. The caller is the PACT Discovery Service. The endpoint MUST authenticate it; the mechanism is **open decision 2** of §5.6, and under the fallback variant the endpoint MUST also accept calls from any registered Solution Provider it can verify.
 6. The Service SHOULD rate-limit and MAY return `429` with `Retry-After`.
-7. The response MUST carry the interface version it was served under (§5.9).
+7. The response MUST carry the full interface version in the `PACT-IM-Version` header (§5.9).
 7. The Service SHOULD send `Cache-Control` headers (§5.9).
 
 ### 10.4 Node connection interface
 
-*Implemented by Credential-Exchange-capable Nodes. Its URL is the `connectionEndpoint` published by discovery. `$base-url$/3/connections` is RECOMMENDED.*
+*Implemented by Credential-Exchange-capable Nodes. Its URL is `{baseUrl}/im/{major}/connections`, at a major version the Node declares in its discovery answer (§5.9.1).*
 
-#### 10.4.1 `POST {connectionEndpoint}` — connection request (Target)
+#### 10.4.1 `POST {baseUrl}/im/{major}/connections` — connection request (Target)
 
 1. Request body: `ConnectionRequest` (§6.3).
 2. Success: `202 Accepted` with `ConnectionAccepted` (`connectionId`, `status: pending`).
@@ -86,14 +101,14 @@ The discovery query. The service performs the fan-out of §5.4 on the requester'
 4. *Option C2:* signed per C2-1 of §6.4; failure returns `401 InvalidSignature`.
 5. *Option C1:* returns `403 RequesterNotResolvable` where the check of C1-1 fails. The Target MAY instead accept the request and run the check before approval.
 
-#### 10.4.2 `GET {connectionEndpoint}/{connectionId}` — status poll (Target) — *Option C2 only*
+#### 10.4.2 `GET {baseUrl}/im/{major}/connections/{connectionId}` — status poll (Target) — *Option C2 only*
 
 1. Signed per C2-1 with the same `serviceId` as the original request. Otherwise `401 InvalidSignature`, or `404 NoSuchConnection` (not `403`, so that valid identifiers are not revealed).
 2. Response `200` with `ConnectionStatus`. While `pending`, the Target SHOULD send `Retry-After`. When `approved`, the body includes `initialAccessToken` and `initialAccessTokenExpiresAt` until the token has been used or has expired.
 
-#### 10.4.3 `POST {connectionEndpoint}/{connectionId}/decision` — decision callback (Requester) — *Option C1 only*
+#### 10.4.3 `POST {baseUrl}/im/{major}/connections/{connectionId}/decision` — decision callback (Requester) — *Option C1 only*
 
-1. Sent by the Target to the Requester's `connectionEndpoint` as resolved through discovery (C1-2).
+1. Sent by the Target to the Requester's Node at the `baseUrl` and a major version resolved through discovery (C1-2).
 2. Request body: `ConnectionDecision`.
 3. The Requester MUST return `204` where `connectionId` is one it created and is pending; otherwise `404 NoSuchConnection` (C1-3).
 4. The Target SHOULD retry delivery with exponential back-off for at least 24 hours on `5xx` or network failure.
@@ -143,6 +158,8 @@ Error responses reuse the base-specification error response shape: a JSON object
 | `/.well-known/pact-challenge/` | HTTPS domain challenge (§4.3.3) | Provisional; to be registered per [RFC8615] |
 | `pact_connection_id` | RFC 7591 client metadata (§6.6) | Provisional; to be registered with IANA or renamed |
 | `PACT-Service-Id` header | Identifies the signing Operator (B1, C2) | Provisional; could instead be the `keyid` of the signature |
+| `PACT-IM-Version` header | Full IM interface version on every response (§5.9) | Provisional |
+| `/im/` path prefix | Root of every IM interface path, versioned by major (§5.9) | Provisional |
 
 ### 10.8 OpenAPI fragment
 
@@ -166,7 +183,22 @@ tags:
     description: Node connection interface (implemented by Credential-Exchange-capable Nodes)
 
 paths:
-  /v1/discovery-services:
+  /im/service-info:
+    get:
+      tags: [directory]
+      operationId: getServiceInfo
+      x-pact-implementer: PACT
+      summary: Supported and deprecated IM interface versions (unversioned path)
+      responses:
+        '200':
+          description: Version information.
+          headers:
+            PACT-IM-Version: { $ref: '#/components/headers/PactImVersion' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ServiceInfo' }
+
+  /im/1/discovery-services:
     get:
       tags: [directory]
       operationId: listDiscoveryServices
@@ -188,7 +220,7 @@ paths:
                     type: array
                     items: { $ref: '#/components/schemas/DiscoveryService' }
 
-  /v1/discovery-services/{serviceId}:
+  /im/1/discovery-services/{serviceId}:
     get:
       tags: [directory]
       operationId: getDiscoveryService
@@ -210,7 +242,7 @@ paths:
         '410':
           $ref: '#/components/responses/Error'
 
-  /v1/resolve:
+  /im/1/resolve:
     get:
       tags: [directory]
       operationId: resolveViaDirectory
@@ -223,6 +255,10 @@ paths:
           description: >
             Aggregated answers and the serviceIds of active discovery endpoints
             that timed out. timedOutServiceIds is empty when no endpoint timed out.
+          headers:
+            PACT-IM-Version: { $ref: '#/components/headers/PactImVersion' }
+            Deprecation: { $ref: '#/components/headers/Deprecation' }
+            Sunset: { $ref: '#/components/headers/Sunset' }
           content:
             application/json:
               schema:
@@ -240,14 +276,14 @@ paths:
         '400':
           $ref: '#/components/responses/Error'
 
-  /3/discovery:
+  /im/1/discovery:
     get:
       tags: [discovery]
       operationId: discoverEntity
       x-pact-implementer: SP
       summary: Resolve a companyIds value to Node(s)
       description: >
-        Path is RECOMMENDED; the actual URL is the listing's discoveryEndpoint.
+        Fixed path {discoveryBaseUrl}/im/{major}/discovery; shown here for major version 1.
         Called by the PACT Discovery Service. How the caller is authenticated is
         open decision 2 of section 5.6; the signature headers below apply where
         signing is chosen.
@@ -259,6 +295,8 @@ paths:
       responses:
         '200':
           description: The Entity is published by this Service.
+          headers:
+            PACT-IM-Version: { $ref: '#/components/headers/PactImVersion' }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/DiscoveryAnswer' }
@@ -271,7 +309,7 @@ paths:
         '429':
           $ref: '#/components/responses/Error'
 
-  /3/connections:
+  /im/1/connections:
     post:
       tags: [connections]
       operationId: requestConnection
@@ -311,7 +349,7 @@ paths:
         '429':
           $ref: '#/components/responses/Error'
 
-  /3/connections/{connectionId}:
+  /im/1/connections/{connectionId}:
     get:
       tags: [connections]
       operationId: getConnectionStatus
@@ -337,7 +375,7 @@ paths:
         '404':
           $ref: '#/components/responses/Error'
 
-  /3/connections/{connectionId}/decision:
+  /im/1/connections/{connectionId}/decision:
     post:
       tags: [connections]
       operationId: receiveConnectionDecision
@@ -389,6 +427,18 @@ components:
       description: RFC 9421. REQUIRED where signing is chosen (sections 5.5, 5.6) and under option C2 (connections).
       schema: { type: string }
 
+  headers:
+    PactImVersion:
+      description: Full IM interface version the response was served under, MAJOR.MINOR (section 5.9).
+      required: true
+      schema: { type: string, pattern: '^[0-9]+[.][0-9]+$' }
+    Deprecation:
+      description: RFC 9745. Present when the version is deprecated.
+      schema: { type: string }
+    Sunset:
+      description: RFC 8594. Present once a withdrawal date is fixed.
+      schema: { type: string }
+
   responses:
     Error:
       description: Error response (base-specification shape).
@@ -413,7 +463,7 @@ components:
 
     DiscoveryService:
       type: object
-      required: [serviceId, operator, domains, discoveryEndpoint, discoveryConformance, conformantVersions, domainVerifiedAt, status]
+      required: [serviceId, operator, domains, discoveryBaseUrl, interfaceVersions, discoveryConformance, conformantVersions, domainVerifiedAt, status]
       properties:
         serviceId: { type: string, examples: ['urn:pact:discovery-service:7d0c6b8e-2f1a-4b8e-9a51-0c3e1d5a9f10'] }
         operator:
@@ -429,7 +479,12 @@ components:
           type: array
           minItems: 1
           items: { type: string, format: hostname }
-        discoveryEndpoint: { type: string, format: uri, pattern: '^https://' }
+        discoveryBaseUrl: { type: string, format: uri, pattern: '^https://' }
+        interfaceVersions:
+          type: array
+          minItems: 1
+          description: Major versions of the IM interface the discovery endpoint supports (section 5.9.1).
+          items: { type: string, pattern: '^[0-9]+$' }
         discoveryConformance:
           type: object
           required: [testSuiteVersion, passedAt]
@@ -466,7 +521,10 @@ components:
       properties:
         nodeId: { type: string }
         baseUrl: { type: string, format: uri, pattern: '^https://' }
-        connectionEndpoint: { type: string, format: uri, pattern: '^https://' }
+        interfaceVersions:
+          type: array
+          description: Major versions of the IM connection interface; the connection endpoint is {baseUrl}/im/{major}/connections. Required for Credential-Exchange-capable Nodes.
+          items: { type: string, pattern: '^[0-9]+$' }
         conformantVersions:
           type: array
           items: { type: string }
@@ -544,6 +602,25 @@ components:
         status: { type: string, enum: [approved, declined, expired] }
         initialAccessToken: { type: string, description: Present only when approved. }
         initialAccessTokenExpiresAt: { type: string, format: date-time }
+
+    ServiceInfo:
+      type: object
+      required: [currentVersion, supportedMajors]
+      properties:
+        currentVersion: { type: string, pattern: '^[0-9]+[.][0-9]+$', examples: ['1.0'] }
+        supportedMajors:
+          type: array
+          items: { type: string, pattern: '^[0-9]+$' }
+        deprecated:
+          type: array
+          items:
+            type: object
+            required: [major, deprecatedAt, releaseNotes]
+            properties:
+              major: { type: string, pattern: '^[0-9]+$' }
+              deprecatedAt: { type: string, format: date }
+              withdrawnAt: { type: string, format: date }
+              releaseNotes: { type: string, format: uri }
 ```
 
 ### 10.9 Implementation checklist for solution providers
@@ -553,22 +630,22 @@ components:
 **To make customers discoverable** (*Discoverable Node* / *Discovery Service Provider*)
 
 1. Publish the domain challenge for the domain(s) of your Discovery Service (§4.3.3).
-2. Implement `GET /3/discovery` over your customer base, returning only customers that opted in (§5.8).
+2. Implement `GET {discoveryBaseUrl}/im/{major}/discovery` over your customer base, returning only customers that opted in (§5.8).
 3. Record for each customer which checks you performed (email, domain, LEI, VC) and when, and publish the resulting assurance (§3.5.2).
-4. Pass the discovery conformance tests and get listed (§4.3.4).
+4. Declare the IM major versions you support (`interfaceVersions`), pass the discovery conformance tests and get listed (§4.3.4, §5.9.1).
 5. Authenticate the PACT Discovery Service on incoming queries (open decision 2), and obtain whatever the service requires to be called (open decision 1).
 
 **To accept connection requests** (*Credential-Exchange-capable Node*)
 
-6. Implement `POST /3/connections` and an approval step in your product for the data owner.
+6. Implement `POST /im/{major}/connections` and an approval step in your product for the data owner.
 7. Enable RFC 7591/7592 on your authorisation server and advertise `registration_endpoint` in `.well-known/openid-configuration`.
 8. Issue single-use initial access tokens bound to the approved connection (§6.6).
-9. *Option C1:* resolve the Requester and deliver the decision to its published endpoint. *Option C2:* verify request signatures and serve `GET /3/connections/{id}`.
+9. *Option C1:* resolve the Requester and deliver the decision to its published endpoint. *Option C2:* verify request signatures and serve `GET /im/{major}/connections/{id}`.
 
 **To request connections for your customers**
 
 10. Resolve the target with one call to the PACT Discovery Service (§10.2.2). No client-side fan-out.
-11. Send the connection request. *Option C1:* implement `POST /3/connections/{id}/decision`. *Option C2:* sign requests and poll.
+11. Send the connection request. *Option C1:* implement `POST /im/{major}/connections/{id}/decision`. *Option C2:* sign requests and poll.
 12. Register as an OAuth client with the initial access token, store the credentials, and use them in the unchanged §5.5 token flow.
 
 ---
@@ -593,7 +670,9 @@ components:
 - [RFC7592] — OAuth 2.0 Dynamic Client Registration Management Protocol.
 - [RFC8414] — OAuth 2.0 Authorization Server Metadata.
 - [RFC8552] — Scoped Interpretation of DNS Resource Records through "Underscored" Naming of Attribute Leaves.
+- [RFC8594] — The Sunset HTTP Header Field.
 - [RFC8615] — Well-Known Uniform Resource Identifiers.
 - [RFC9111] — HTTP Caching.
 - [RFC9421] — HTTP Message Signatures.
+- [RFC9745] — The Deprecation HTTP Response Header Field.
 - [OPENAPI] — OpenAPI Specification 3.1.
