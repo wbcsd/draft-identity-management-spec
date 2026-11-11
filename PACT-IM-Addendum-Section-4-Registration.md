@@ -1,8 +1,12 @@
 # PACT Identity Management Addendum — §4 Registration (Draft)
 
-*Draft v0.2 — 16 September 2026. Draft normative text for the Registration section of the PACT Identity Management addendum to [DATA-EXCHANGE-PROTOCOL] V3. Builds on §3 (Identity Model) and reflects the design decisions of 18 June 2026 as amended by the Technology Working Group session of 2 September 2026 (see the addendum outline, §12.1). Editorial conventions follow the base specification: the key words MUST, MUST NOT, SHOULD, SHOULD NOT, MAY, REQUIRED, and OPTIONAL are to be interpreted as in [RFC2119]/[RFC8174] when, and only when, in all capitals.*
+*Draft v0.4 — 11 November 2026. Draft normative text for the Registration section of the PACT Identity Management addendum to [DATA-EXCHANGE-PROTOCOL] V3. Builds on §3 (Identity Model) and reflects the design decisions of 18 June 2026 as amended by the Technology Working Group session of 2 September 2026 (see the addendum outline, §12.1). Editorial conventions follow the base specification: the key words MUST, MUST NOT, SHOULD, SHOULD NOT, MAY, REQUIRED, and OPTIONAL are to be interpreted as in [RFC2119]/[RFC8174] when, and only when, in all capitals.*
 
 > **Status of this section.** Working draft for Technology Working Group review. Attribute names and URN strings are provisional pending WG ratification. **OAuth 2.0 Dynamic Client Registration [RFC7591]** is assumed as the credential-provisioning binding (§6).
+>
+> **Changes in v0.4 (provider authentication proposal, 11 November 2026 — for WG confirmation).**
+> - Listing now includes an exchange of **OAuth client credentials in both directions**: PACT issues the Operator a `client_id` and secret for the Discovery Service, and the Operator issues PACT a `client_id` and secret for its discovery endpoint (§4.3.6). Both use the client-credentials flow providers already run for the base specification. No keys or key sets are required.
+> - The Directory listing is **publicly readable** (§4.2), and `discoveryBaseUrl` is also where an Operator receives connection decisions for its Nodes (§6.4.2).
 >
 > **Changes in v0.3 (following the 30 September WG session).**
 > - PACT operates a **central Discovery Service** on top of this registry, and it is **private**: only registered Solution Providers may query it (W5, W6, §5).
@@ -39,7 +43,7 @@ Registration at either level is deliberately narrow. It is **not** an authorisat
 
 1. PACT MUST operate a single **PACT Directory** listing the Discovery Services of the PACT Network.
 2. For each listed Discovery Service, the Directory MUST hold the attributes of §4.3.2 and nothing about the Entities that Service answers for.
-3. The Directory MUST publish its listing through the read interface defined in §10. Who may read it is an open decision tied to Option B of §5.6.
+3. The Directory MUST publish its listing through the read interface defined in §10. The listing is publicly readable; it contains no secret material (§4.3.2).
 4. The Directory MUST NOT replicate LEI reference data, or any other registry's reference data, about Operators beyond the identifiers they declare.
 5. PACT MUST operate the **Discovery Service** defined in §5 on top of this registry. That service fans a query out to the listed discovery endpoints and returns what they answer; it MUST NOT build or retain an index of the Entities those endpoints serve (§5.3).
 6. The Discovery Service MUST accept queries only from Operators listed in the Directory (§5.5).
@@ -63,16 +67,17 @@ A Directory listing MUST carry:
 | `operator.companyIds` | REQUIRED | Array of URNs per §3.4 identifying the Operator as an Entity. |
 | `operator.name` | REQUIRED | The Operator's legal or trading name. |
 | `domains` | REQUIRED | One or more Internet domains whose control the Operator demonstrated (§4.3.3). |
-| `discoveryBaseUrl` | REQUIRED | HTTPS base URL of the Operator's discovery endpoint. MUST be under one of `domains`. The Discovery Service calls `{discoveryBaseUrl}/im/{major}/discovery` (§10.3). |
+| `discoveryBaseUrl` | REQUIRED | HTTPS base URL of the Operator's IM endpoints. MUST be under one of `domains`. The Discovery Service calls `{discoveryBaseUrl}/im/{major}/discovery` (§10.3), and other Operators send connection decisions to `{discoveryBaseUrl}/im/{major}/connections/{connectionId}/decision` (§6.4.2). |
 | `interfaceVersions` | REQUIRED | The major versions of the IM interface the discovery endpoint supports, e.g. `["1"]` (§5.9.1). Declared by the Operator. |
 | `discoveryConformance` | REQUIRED | Result of the discovery conformance tests: test-suite version and date passed (§4.3.4). |
 | `conformantVersions` | REQUIRED | Base-specification versions for which the Operator's solution holds PACT conformance. MAY be empty (§4.3.5). |
 | `domainVerifiedAt` | REQUIRED | Time the domain challenge last succeeded. |
 | `status` | REQUIRED | `active` or `suspended` (§4.4.2). |
-| `jwksUri` | CONDITIONAL | Required where request signing is adopted (§5.5, §5.6 or Option C2 of §6.4). MUST be under one of `domains`. Client secrets, bearer tokens, private keys and other secret authentication material for discovery MUST be provisioned privately to their intended recipient and MUST NOT be included in Directory read responses. |
 | `contact` | REQUIRED | Operational and security contact. MUST NOT be published to other participants. |
 
 The Directory MUST NOT require further attributes as a condition of listing.
+
+The credentials exchanged at listing (§4.3.6) are not listing attributes. Client secrets, access tokens and any other secret authentication material MUST be provisioned privately to their intended recipient and MUST NOT appear in any Directory read response.
 
 #### 4.3.3 Domain ownership of the Operator
 
@@ -83,9 +88,9 @@ Before a Discovery Service is listed, the PACT Conformance Service MUST verify t
    - an HTTPS resource at `https://<domain>/.well-known/pact-challenge/<token-id>` whose body is the token, served with a valid TLS certificate for `<domain>`.
 2. Tokens MUST be single-use and MUST expire, RECOMMENDED within 7 days of issue.
 3. The Conformance Service MUST record the method used and the time of success, and the Directory MUST expose the latter as `domainVerifiedAt`.
-4. Domain control MUST be re-verified on every change to `domains`, `discoveryBaseUrl`, or `jwksUri`, and at every conformance re-test.
+4. Domain control MUST be re-verified on every change to `domains` or `discoveryBaseUrl`, and at every conformance re-test.
 
-*Editor's note.* This is the v0.1 "proof of endpoint control" moved to the level where the WG placed it. Binding `discoveryBaseUrl` (and, where adopted, `jwksUri`) to a verified domain means an attacker cannot list a Discovery Service that impersonates an existing Operator. It does not stop a *listed* Operator from publishing false information about its own customers. That risk is contained by accountability and delisting (§4.4.2), not by cryptography. The `_pact-challenge` label and the `.well-known` suffix need registering or confirming; that is for §10.
+*Editor's note.* This is the v0.1 "proof of endpoint control" moved to the level where the WG placed it. Binding `discoveryBaseUrl` to a verified domain means an attacker cannot list a Discovery Service that impersonates an existing Operator. It does not stop a *listed* Operator from publishing false information about its own customers. That risk is contained by accountability and delisting (§4.4.2), not by cryptography. The `_pact-challenge` label and the `.well-known` suffix need registering or confirming; that is for §10.
 
 #### 4.3.4 Conformance-gated listing
 
@@ -102,12 +107,30 @@ Before a Discovery Service is listed, the PACT Conformance Service MUST verify t
 2. The Directory MUST source `conformantVersions` from the PACT Conformance Service and MUST NOT accept it as a self-assertion.
 3. An empty `conformantVersions` MUST NOT prevent listing. Counterparties MAY use it to decide whether to attempt a connection.
 
+#### 4.3.6 Credentials for the discovery calls
+
+*Proposal of 11 November 2026, for WG confirmation. Settles open decisions 1 and 2 (§5.5, §5.6).*
+
+Discovery has two calls: a provider asks PACT to resolve an identifier, and PACT asks each provider's discovery endpoint. Each call uses the OAuth 2.0 client-credentials flow that every conformant provider already runs for the base specification [RFC6749] §4.4. The credentials are exchanged once, as part of listing.
+
+1. **PACT to the Operator.** When a listing becomes `active`, the PACT Discovery Service MUST issue the Operator a `client_id` and `client_secret` for its token endpoint (§5.5.1).
+2. **The Operator to PACT.** As part of listing, the Operator MUST issue PACT a `client_id` and `client_secret` on the authorisation server that protects its discovery endpoint, for the client-credentials grant, and provide them to PACT. PACT uses them as any base-specification client would, with `discoveryBaseUrl` as the host's base URL (§5.6).
+3. Both sets of credentials MUST be exchanged over an authenticated channel of the listing process, such as the PACT conformance portal, and never by email. They MUST NOT appear in any Directory read response (§4.3.2).
+4. PACT MUST store the secrets it holds encrypted at rest, MUST restrict access to them to the Discovery Service, and MUST use each only to call the discovery endpoint of the Operator that issued it.
+5. Either party MAY rotate the credentials it issued. The issuer provides the new secret through the same channel and SHOULD keep the previous one valid for an overlap of **[overlap period — WG to confirm]**.
+6. The discovery conformance tests (§4.3.4) MUST check both directions: that the Operator can obtain a token from PACT and resolve, and that PACT can obtain a token from the Operator and call its discovery endpoint.
+7. When a listing is `suspended` or delisted, PACT MUST stop issuing tokens to that Operator and MUST stop calling its discovery endpoint. The Operator MAY then revoke the credentials it issued to PACT.
+
+*Transition.* The client-secret route already served by the PACT identity management service (§10.5.1) is the mechanism of requirement 1. It is now documented here rather than in correspondence.
+
+*Editor's note — alternatives considered.* A signing key per provider, published under its verified domain, would avoid shared secrets and mean PACT holds none. But every provider would have to host a key set and sign tokens or requests, which is new work for every implementer before it can be discoverable. Client credentials reuse what each provider already has. The cost is that PACT holds one secret per provider, which requirement 4 contains. Key-based authentication can be added as a minor version if the stakes of fraud rise (§5.9).
+
 ### 4.4 Maintaining a listing
 
 #### 4.4.1 Update
 
-1. An Operator MUST keep `discoveryBaseUrl`, `interfaceVersions`, `domains`, `contact`, and (where applicable) `jwksUri` current. The `contact` is where PACT sends the notices of §5.10.
-2. A change to `domains`, `discoveryBaseUrl`, or `jwksUri` MUST trigger re-verification (§4.3.3). The changed value MUST NOT be published until re-verification succeeds; the previous value remains in force meanwhile.
+1. An Operator MUST keep `discoveryBaseUrl`, `interfaceVersions`, `domains`, and `contact` current, and MUST keep the credentials it issued to PACT valid (§4.3.6). The `contact` is where PACT sends the notices of §5.10.
+2. A change to `domains` or `discoveryBaseUrl` MUST trigger re-verification (§4.3.3). The changed value MUST NOT be published until re-verification succeeds; the previous value remains in force meanwhile.
 3. The Directory SHOULD run a periodic liveness check against listed Discovery Services and SHOULD expose the result. It MUST NOT delist a Service solely because it is temporarily unreachable.
 
 #### 4.4.2 Suspension
@@ -164,7 +187,7 @@ Listing and registration produce exactly the metadata that automated credential 
 | Condition | Meaning |
 |---|---|
 | `DomainControlNotProven` | The domain challenge (§4.3.3) was not completed for one or more domains. |
-| `EndpointNotUnderVerifiedDomain` | `discoveryBaseUrl` or `jwksUri` is not under a verified domain. |
+| `EndpointNotUnderVerifiedDomain` | `discoveryBaseUrl` is not under a verified domain. |
 | `DiscoveryConformanceNotPassed` | The applicant has not passed the current discovery conformance tests (§4.3.4). |
 | `OperatorAlreadyListed` | A listing with an overlapping `operator.companyIds` value already exists. |
 
@@ -174,7 +197,7 @@ Listing and registration produce exactly the metadata that automated credential 
 
 - SP portability: whether an Entity's right to withdraw from, or move away from, an Operator needs a normative hook (§4.5 editor's note).
 - Transition period for new discovery test-suite versions, tied to parked item P1 on notification and versioning (§4.3.4).
-- Who may read the PACT Directory listing, tied to Option B (§5.6) and parked item P3.
+- The channel for exchanging credentials at listing and the rotation overlap (§4.3.6) — for WG confirmation.
 - The misbehaviour and reinstatement procedure for suspension (§4.4.2): operational annex.
 - Registration of the `_pact-challenge` DNS label and `.well-known/pact-challenge` suffix (§4.3.3), to be fixed in §10.
 - Whether listing and lifecycle events MUST be audit-logged. The base specification leaves logging out of scope (§5.3(d)). Carried to §7.
@@ -186,6 +209,7 @@ Listing and registration produce exactly the metadata that automated credential 
 
 - [DATA-EXCHANGE-PROTOCOL] — Technical Specifications for PCF Data Exchange, V3.0.3 (§5.3 out of scope; §5.5 authentication).
 - [RFC2119], [RFC8174] — requirement-level keywords.
+- [RFC6749] — The OAuth 2.0 Authorization Framework.
 - [RFC7591] — OAuth 2.0 Dynamic Client Registration Protocol.
 - [RFC8414] — OAuth 2.0 Authorization Server Metadata.
 - [RFC8615] — Well-Known Uniform Resource Identifiers.
