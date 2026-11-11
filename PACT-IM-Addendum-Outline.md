@@ -287,15 +287,35 @@ Implements W10 and closes parked item P1, subject to the WG. Drafted in §4.3.2,
 
 **For the WG to decide:** the notice period before a major version is withdrawn, and how many major versions PACT supports at once (e.g. current and previous). Both are placeholders in §5.9.2. The three notified event types in V5 are an editorial default.
 
+### 12.6 Provider authentication — proposal of 11 November 2026, for WG confirmation
+
+Settles open decisions 1 and 2 (§5.5, §5.6) and option C (§6.4), the last functional gap named in the 28 October recap. Drafted in §4.3.6, §5.5.1, §5.6, §6.4 and §10. Principle: reuse the OAuth client-credentials flow every conformant provider already runs, and add no key management.
+
+| # | Proposal | Where |
+|---|---|---|
+| **K1** | **Provider → PACT:** PACT issues each provider a `client_id` and `client_secret` at listing; the provider gets a token with the client-credentials grant and calls `/resolve`. This is the route PACT's identity management service already serves, now documented. | §4.3.6, §5.5.1, §10.5.1 |
+| **K2** | **PACT → provider:** the provider issues PACT a `client_id` and `client_secret` on its own authorisation server at listing; PACT is one more base-specification client. Only PACT calls discovery endpoints; no direct provider-to-provider fallback. Queries do not reveal the requesting provider. | §4.3.6, §5.6 |
+| **K3** | Credentials are exchanged privately through the listing process, never in listing responses. PACT stores provider secrets encrypted and uses each only for that provider. Either side rotates what it issued. Conformance tests both directions; suspension stops both. | §4.3.6 |
+| **K4** | **Connection requests stay unsigned.** The Target checks that the Requester's listing is active and declares the request's major. Resolving the Requester is optional, so a Requester need not be discoverable. | §6.4.1 |
+| **K5** | **Decision pushed** to `{discoveryBaseUrl}/im/{major}/connections/{id}/decision` of the **Requester's Operator**, from its listing, never to a URL in the request; matched on the unguessable `connectionId`. No polling endpoint. | §6.4.2, §10.4.2 |
+| **K6** | The Directory listing is **publicly readable** (confirms E8). | §4.2, §10.2.1 |
+| **K7** | **Keys and request signing are deferred.** They can be added as a minor version if the stakes of fraud rise. | §4.3.6, §6.4 |
+
+**Effect on effort:** three PACT-specific methods per provider, and no new authentication technology.
+
+**Accepted residual risks:** PACT holds one secret per provider; a breach would let an attacker query every discovery endpoint. A request can name a real company, but cannot yield credentials.
+
+**For the WG to confirm:** the channel for exchanging credentials at listing, and the rotation overlap.
+
 ### 12.3 Open decisions for the Working Group (drafted side by side)
 
 | # | Question | Options | Where |
 |---|---|---|---|
 | ~~**A**~~ | Who performs the discovery fan-out? | **Decided 30 Sept (W5): A2** — PACT operates the central service and retains nothing | §5.3–§5.4 |
-| ~~**B**~~ | Who may query? | **Decided 30 Sept (W6): private** — registered Solution Providers only. *How* they authenticate is now open decision 1 (§5.5) | §5.5 |
-| **C** | How is a connection request authenticated and the decision delivered? | **C1** decision + initial access token sent only to the Requester's endpoint as published by its Discovery Service · **C2** signed request, Requester polls | §6.4 |
+| ~~**B**~~ | Who may query? | **Decided 30 Sept (W6): private** — registered Solution Providers only. *How* they authenticate: proposal K1 (§12.6) | §5.5 |
+| **C** | How is a connection request authenticated and the decision delivered? | **Proposal 11 Nov (K4, K5):** unsigned request from a listed Operator; decision pushed only to the Requester's Operator at its listed base URL. Replaces C1 / C2 | §6.4 |
 
-Every combination costs an SP three new PACT-specific methods (§10.1). B and C are most coherent when decided together (B2+C1: no keys; B1+C2: one key pair per SP).
+Under the 11 November proposal an SP implements three new PACT-specific methods (§10.1), and authentication reuses the client-credentials flow it already runs.
 
 ### One-line architecture summary
 

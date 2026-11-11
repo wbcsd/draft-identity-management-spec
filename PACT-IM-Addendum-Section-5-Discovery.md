@@ -1,8 +1,13 @@
 # PACT Identity Management Addendum — §5 Node Discoverability (Draft)
 
-*Draft v0.3 — 28 October 2026. Normative text for the Node Discoverability section of the PACT Identity Management addendum to [DATA-EXCHANGE-PROTOCOL] V3. Builds on §3 (Identity Model) and §4 (Registration). Implements the decisions of the Technology Working Group session of **30 September 2026**: PACT operates a **central discovery service** that fans a query out to the discovery endpoints of registered Solution Providers, and the service is **private** — only registered Solution Providers may query it (see the addendum outline, §12.4). Editorial conventions follow the base specification: the key words MUST, MUST NOT, SHOULD, SHOULD NOT, MAY, REQUIRED, and OPTIONAL are to be interpreted as in [RFC2119]/[RFC8174] when, and only when, in all capitals.*
+*Draft v0.4 — 11 November 2026. Normative text for the Node Discoverability section of the PACT Identity Management addendum to [DATA-EXCHANGE-PROTOCOL] V3. Builds on §3 (Identity Model) and §4 (Registration). Implements the decisions of the Technology Working Group session of **30 September 2026**: PACT operates a **central discovery service** that fans a query out to the discovery endpoints of registered Solution Providers, and the service is **private** — only registered Solution Providers may query it (see the addendum outline, §12.4). Editorial conventions follow the base specification: the key words MUST, MUST NOT, SHOULD, SHOULD NOT, MAY, REQUIRED, and OPTIONAL are to be interpreted as in [RFC2119]/[RFC8174] when, and only when, in all capitals.*
 
 > **Status of this section.** Working draft for Technology Working Group review.
+>
+> **Changes in v0.4 (provider authentication proposal, 11 November 2026 — for WG confirmation).**
+> - Open decision 1 is replaced by a proposal: a provider calls the Discovery Service with an access token obtained with the **client credentials PACT issued at listing** (§5.5.1).
+> - Open decision 2 is replaced by a proposal: provider endpoints accept **only the PACT Discovery Service**, which obtains an access token from the provider's own authorisation server with the **client credentials the provider issued to PACT** (§5.6). No direct provider-to-provider calls.
+> - The alternatives the WG had side by side are kept as short editor's notes.
 >
 > **Changes in v0.3 (versioning proposal, 28 October 2026 — for WG confirmation).**
 > - §5.9 defines **IM interface versions**: `MAJOR.MINOR`, the major in the path (`/im/{major}/…`), the full version in a `PACT-IM-Version` header; providers declare the majors they support and the service calls each at the highest common one.
@@ -88,32 +93,27 @@ A domain-keyed lookup remains possible as a *complement* in a later version.
 2. A provider queries on behalf of its own customers; the Discovery Service MUST NOT require the identity of the customer on whose behalf a query is made, and a provider SHOULD NOT supply it.
 3. Opening the service to a wider set of callers is a future change, subject to §5.9: a public read tier would return a reduced answer and is not defined here.
 
-#### Open decision 1 — how a provider authenticates to the service
+#### 5.5.1 Obtaining an access token
 
-*The WG has not settled this. Both options are drafted; the choice affects §10 only.*
+*Proposal of 11 November 2026, for WG confirmation. Replaces open decision 1.*
 
-| | **1a — Credentials issued at registration** | **1b — Signed requests** |
-|---|---|---|
-| Mechanism | The service issues OAuth 2.0 client credentials when the provider is registered; the provider presents a bearer token on each query | The provider signs each query (HTTP Message Signatures [RFC9421]) with a key published at a `jwks_uri` under a domain verified in §4.3.3 |
-| Provider effort | Store a secret, fetch a token — the same pattern providers already implement for the base specification | Key pair, JWKS publication, signing |
-| Consistency with what exists | Matches the token route the PACT identity management service already serves (§10.5) | New infrastructure, but no shared secret to leak and reusable for §6 |
-| Revocation | Revoke the client at suspension | Remove the listing; keys stay valid until the listing is checked |
+1. A provider MUST request an access token at the `token_endpoint` named in the Discovery Service's `/.well-known/openid-configuration` (§10.5.1), with the client-credentials grant [RFC6749] §4.4 and the `client_id` and `client_secret` PACT issued to it at listing (§4.3.6), using HTTP Basic authentication as in the base specification's token flow.
+2. The Discovery Service MUST issue tokens only to Operators whose listing is `active`.
+3. This version defines no scopes: a token authorises every Discovery Service operation that requires authentication.
+4. The provider presents the token with `Authorization: Bearer` on `GET /im/{major}/resolve` (§10.2.2). The service MUST answer `401` to a missing, invalid or expired token, and `403 RequesterNotListed` once the listing is no longer `active`.
+
+*Editor's note — alternatives considered.* Signing every query (former option 1b), or authenticating to the token endpoint with a signed assertion instead of a secret, would avoid a shared secret. Both need key material and signing on every provider. A client secret issued at listing (former option 1a) is the pattern every provider already implements as a client of the base specification, and is the route PACT's identity management service already serves.
 
 ### 5.6 Calls to a provider's discovery endpoint
 
-1. A provider's discovery endpoint MUST answer queries from the PACT Discovery Service, and MUST authenticate that caller.
-2. It MUST NOT accept unauthenticated queries from any source.
+*Proposal of 11 November 2026, for WG confirmation. Replaces open decision 2.*
 
-#### Open decision 2 — how the endpoint authenticates the service, and whether direct calls are allowed
+1. A provider's discovery endpoint MUST accept queries **only from the PACT Discovery Service**. Direct provider-to-provider queries are not part of this version.
+2. The Discovery Service MUST obtain an access token from the provider's authorisation server with the client-credentials grant and the `client_id` and `client_secret` the provider issued to PACT at listing (§4.3.6), following the base specification's authentication flow (§5.5 of [DATA-EXCHANGE-PROTOCOL]) with `discoveryBaseUrl` as the host's base URL. It presents the token with `Authorization: Bearer` on each query.
+3. The endpoint MUST validate the token as it validates any access token its authorisation server issued, MUST answer `401` to every request without a valid token issued to PACT's client, and SHOULD restrict that client to the discovery endpoint.
+4. A query from the Discovery Service MUST NOT identify the provider on whose behalf it is made. The queried provider learns that an identifier was looked up, not by whom (§5.3).
 
-| | **2a — Service only** | **2b — Service, plus direct provider-to-provider as fallback** |
-|---|---|---|
-| Who may call | The PACT Discovery Service and nobody else | The service, and any registered provider calling directly |
-| Provider effort | One caller to authenticate; simplest to build and to conformance-test | Must authenticate many callers and check each is registered |
-| Availability | Discovery is unavailable while the service is down; established connections are unaffected (§5.3, requirement 4) | A provider can fall back to querying endpoints directly from the registry listing |
-| Exposure | Every queried provider sees the identifier; central fan-out can hide the requesting provider's identity | Every queried provider sees both the identifier and the authenticated requesting provider |
-
-*Editor's note.* The two open decisions interact: 1b and 2b share one signing mechanism, while 1a and 2a together are the smallest thing a provider has to build. The WG may find them easier to decide as a pair.
+*Editor's note — alternatives considered.* Direct provider-to-provider calls as a fallback (former option 2b) would keep discovery available while the PACT service is down. But every provider would then have to authenticate many callers, and every query would reveal the requesting provider to the queried one. Established connections never depend on the service (§5.3), so the gain is limited to finding new partners during an outage. A token signed by PACT and verified against PACT's published keys would mean PACT holds no provider secrets, but every provider would have to accept and verify tokens from an issuer other than its own authorisation server. With client credentials, PACT is simply one more OAuth client of each provider. The cost is that PACT holds one secret per provider; §4.3.6 requirement 4 sets how they are protected.
 
 ### 5.7 Discovery answer
 
@@ -181,7 +181,7 @@ A positive answer describes one Entity and the Node(s) through which it can be c
 1. A provider MUST declare in its registry listing the major versions its discovery endpoint supports (`interfaceVersions`, §4.3.2). The declaration is the provider's own; it is not separately tested per version.
 2. The Discovery Service MUST call each provider at the highest major version that both the service and the provider support, and MUST NOT call a provider at a major version it has not declared.
 3. A requester MAY call the Discovery Service at any major version the service supports. The service MUST translate between discovery-interface versions when fanning out, so a requester and a target provider need not support the same major version for discovery. This translation applies only to discovery operations and data; it does not make Node connection interfaces compatible.
-4. A discovery answer lists, per Node, the major versions of the connection interface that Node supports (`nodes[].interfaceVersions`, §5.7). A Requester MUST use a connection major supported by both its own Node and the Target Node (§6.3). If they have no major in common, the Requester MUST NOT attempt an automated connection and MUST use manual credential exchange or report that no mutually supported connection interface exists. Under C1, the Target MUST apply the same compatibility check before accepting a request and use that common major for the decision callback (§6.4).
+4. A discovery answer lists, per Node, the major versions of the connection interface that Node supports (`nodes[].interfaceVersions`, §5.7). A Requester MUST use a connection major supported by both its own Node and the Target Node (§6.3). If they have no major in common, the Requester MUST NOT attempt an automated connection and MUST use manual credential exchange or report that no mutually supported connection interface exists. The Target sends its decision at the same major as the connection request (§6.4.2).
 
 #### 5.9.2 Breaking changes
 
@@ -234,8 +234,7 @@ sequenceDiagram
 
 ## Open items carried from this section
 
-- **Open decision 1** — how a provider authenticates to the Discovery Service (§5.5).
-- **Open decision 2** — how a provider's endpoint authenticates the service, and whether direct provider-to-provider queries are allowed as a fallback (§5.6).
+- WG confirmation of the authentication proposal (§5.5.1, §5.6).
 - Accepted identifier schemes (§3.4) — **open pending the Taiwan UBN proof of concept on 28 October**; the mechanics of naming and matching are specified, the list is not.
 - Notice period before a major version is withdrawn, and the number of major versions supported at once (§5.9.2) — **figures for the WG**.
 - Whether a change feed or subscriptions are wanted on top of service-info, headers and mail (§5.10).
@@ -251,6 +250,5 @@ sequenceDiagram
 - [RFC8414] — OAuth 2.0 Authorization Server Metadata.
 - [RFC9110] — HTTP Semantics.
 - [RFC9111] — HTTP Caching.
-- [RFC9421] — HTTP Message Signatures.
 - [RFC8594] — The Sunset HTTP Header Field.
 - [RFC9745] — The Deprecation HTTP Response Header Field.

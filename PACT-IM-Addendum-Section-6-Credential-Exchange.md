@@ -1,8 +1,10 @@
 # PACT Identity Management Addendum — §6 Automated Credential Exchange (Draft)
 
-*Draft v0.1 — 16 September 2026. First pass at normative text for the Automated Credential Exchange section of the PACT Identity Management addendum to [DATA-EXCHANGE-PROTOCOL] V3. Builds on §3 (Identity Model), §4 (Registration) and §5 (Node Discoverability). Reflects decision D13 of 18 June 2026 (peer-to-peer after discovery; RFC 7591 as the RECOMMENDED binding) and the 2 September 2026 WG decisions (see the addendum outline, §12.1). Editorial conventions follow the base specification: the key words MUST, MUST NOT, SHOULD, SHOULD NOT, MAY, REQUIRED, and OPTIONAL are to be interpreted as in [RFC2119]/[RFC8174] when, and only when, in all capitals.*
+*Draft v0.2 — 11 November 2026. First pass at normative text for the Automated Credential Exchange section of the PACT Identity Management addendum to [DATA-EXCHANGE-PROTOCOL] V3. Builds on §3 (Identity Model), §4 (Registration) and §5 (Node Discoverability). Reflects decision D13 of 18 June 2026 (peer-to-peer after discovery; RFC 7591 as the RECOMMENDED binding) and the 2 September 2026 WG decisions (see the addendum outline, §12.1). Editorial conventions follow the base specification: the key words MUST, MUST NOT, SHOULD, SHOULD NOT, MAY, REQUIRED, and OPTIONAL are to be interpreted as in [RFC2119]/[RFC8174] when, and only when, in all capitals.*
 
-> **Status of this section.** First pass for Technology Working Group discussion. Discovery is now the central PACT service (§5), so a Target resolves a Requester through that service rather than by calling another provider directly. **One design decision is deliberately left open and presented side by side:** how a target Node knows a connection request really comes from the party it names, and how the approval reaches that party (Option C, §6.4). Parameter names are provisional.
+> **Status of this section.** First pass for Technology Working Group discussion. Discovery is now the central PACT service (§5), so a Target resolves a Requester through that service rather than by calling another provider directly. Parameter names are provisional.
+>
+> **Changes in v0.2 (provider authentication proposal, 11 November 2026 — for WG confirmation).** Options C1 and C2 are replaced by one proposal: the connection request stays unsigned, the Target checks that the Requester's Operator is listed, and the decision is **pushed only to the Requester's Operator** at the base URL in its Directory listing (§6.4). A Requester no longer has to be discoverable to connect, and no Target implements a polling endpoint.
 
 ---
 
@@ -26,13 +28,13 @@ The flow has four steps: **request** (§6.3), **approve** (§6.5), **provision**
 
 1. The Requester has resolved the Target through discovery (§5.4) or already knows the Target's `baseUrl` and the IM interface versions its Node supports (§5.9.1).
 2. The Target's `$base-url$/.well-known/openid-configuration` advertises a `registration_endpoint` [RFC8414]. A Target without one is not Credential-Exchange-capable, and the Requester MUST fall back to manual credential exchange.
-3. A Node that sends connection requests MUST itself be served by an Operator listed in the PACT Directory. This lets the Target check the Requester against a verified Operator (§6.4).
+3. A Node that sends connection requests MUST itself be served by an Operator listed in the PACT Directory. The Target sends its decision to that Operator's listed base URL (§6.4).
 
 ### 6.3 Connection request
 
 The Requester sends `POST {Target baseUrl}/im/{major}/connections` (§10.4) at a major version supported by both its own Node and the Target Node (§5.9.1), with:
 
-If the Nodes have no connection major in common, the Requester MUST NOT send the request and MUST use manual credential exchange or report that no mutually supported connection interface exists.
+If the Nodes have no connection major in common, the Requester MUST NOT send the request and MUST use manual credential exchange or report that no mutually supported connection interface exists. The major MUST also be one that the Requester's Operator declares in its listing (`interfaceVersions`), because the Target sends its decision there at the same major (§6.4.2).
 
 | Field | Requirement | Notes |
 |---|---|---|
@@ -46,47 +48,34 @@ If the Nodes have no connection major in common, the Requester MUST NOT send the
 1. The Target MUST respond `202 Accepted` with a `connectionId` and `status` `pending`, or with an error (§10.6).
 2. `connectionId` MUST be generated with at least 128 bits of entropy and MUST NOT be guessable.
 3. The Target MUST check that `requester.serviceId` refers to an `active` listing in the PACT Directory, and MUST reject the request with `RequesterNotListed` otherwise.
-4. The request MUST NOT contain a callback URL, a redirect URL, or any other endpoint that the Target would use to reach the Requester. Endpoints for the Requester are only ever taken from its Operator's Discovery Service (§6.4).
+4. The request MUST NOT contain a callback URL, a redirect URL, or any other endpoint that the Target would use to reach the Requester. The Target sends its decision only to the base URL in the Directory listing of the Requester's Operator (§6.4.2).
+5. The request carries no credentials. Its authenticity rests on where the decision is delivered (§6.4).
 5. A Target SHOULD rate-limit connection requests per `requester.serviceId`.
 
-### 6.4 Open decision C — authenticating the Requester and delivering approval
+### 6.4 Accepting a request and delivering the decision
 
-A connection request arrives before any credentials exist, so it cannot be authenticated with OAuth. Without a further check, anyone could send a request that *names* a real company. The two options below close that gap in different ways.
+*Proposal of 11 November 2026, for WG confirmation. Replaces options C1 and C2.*
 
-#### Option C1 — Approval delivered to the Requester's published endpoint
+A connection request arrives before the two Nodes share any credentials, and it is not signed. Its authenticity rests on where the answer goes: the decision, and with it the initial access token, is delivered only to the Requester's Operator, at the base URL that PACT has verified for it.
 
-The request itself is unsigned. Authenticity comes from where the approval is sent.
+#### 6.4.1 Accepting a request
 
-- C1-1. Before accepting the request, the Target MUST resolve `requester.companyIds` through the PACT Discovery Service (§5.4, §10.2.2), and MUST confirm that an answer vouched by `requester.serviceId` lists `requester.nodeId` with the major version used by the request in its `interfaceVersions`. Otherwise it MUST reject the request with `RequesterNotResolvable` if the Node cannot be confirmed, or `IncompatibleInterfaceVersion` if the Nodes have no common connection major.
-- C1-2. On a decision, the Target MUST send `POST {Requester baseUrl}/im/{major}/connections/{connectionId}/decision` (§10.4), using the `baseUrl` from C1-1 and the same common major used by the connection request, never an endpoint supplied in the request. On approval, the body carries the initial access token (§6.6).
-- C1-3. The Requester MUST reject, with `404`, a decision for a `connectionId` it did not itself create. It SHOULD log such events as a possible impersonation attempt.
-- C1-4. The Requester MUST NOT use any endpoint contained in a decision message. It reads the Target's `registration_endpoint` from the Target's own well-known document (§6.2).
+1. The Target MUST check that `requester.serviceId` refers to an `active` listing in the PACT Directory (§6.3, §10.2.1), and MUST reject the request with `403 RequesterNotListed` otherwise.
+2. The Target MUST check that the major version of the request is declared in that listing's `interfaceVersions`, and MUST reject the request with `409 IncompatibleInterfaceVersion` otherwise, because it could not deliver the decision.
+3. The Target MAY resolve the Requester through discovery, for example to show the approver who vouches for it and at what assurance (§6.5). It is not required to, so a Requester does not have to be discoverable in order to connect.
+4. The Target SHOULD rate-limit requests per `requester.serviceId`.
 
-*Why it holds.* Someone impersonating a Requester can create a pending request, but the initial access token only ever travels to the endpoint the genuine Requester's Operator publishes. A forged decision sent to a Requester fails at C1-3 or when the token is used.
+#### 6.4.2 Delivering the decision
 
-#### Option C2 — Signed request, Requester polls for the decision
+1. When a connection is approved, declined or expires, the Target MUST send `POST {discoveryBaseUrl}/im/{major}/connections/{connectionId}/decision` (§10.4.2). `discoveryBaseUrl` is taken from the Directory listing of `requester.serviceId`, and `major` is the major of the original request. The Target MUST NOT use any URL supplied in the request.
+2. On approval, the body carries the initial access token (§6.6).
+3. The Requester's Operator MUST answer `404 NoSuchConnection` to a decision for a `connectionId` that none of its Nodes created, and SHOULD log it as a possible impersonation attempt. Otherwise it MUST answer `204` and pass the decision to the Node that sent the request.
+4. The Target SHOULD retry delivery with exponential back-off for at least 24 hours on `5xx` or network failure.
+5. The Requester MUST NOT use any endpoint contained in a decision. It reads the Target's `registration_endpoint` from the Target's own well-known document (§6.2).
 
-- C2-1. The connection request MUST be signed with HTTP Message Signatures [RFC9421], covering at least `@method`, `@target-uri`, `content-digest` [RFC9530], and a `created` timestamp, with a key published at the `jwksUri` of the listing for `requester.serviceId` (§4.3.2).
-- C2-2. The Target MUST verify the signature against that `jwksUri` and MUST reject the request with `InvalidSignature` if verification fails or the listing is not `active`.
-- C2-3. The Requester obtains the decision by polling `GET {Target baseUrl}/im/{major}/connections/{connectionId}` (§10.4), with each poll signed as in C2-1. The Target MUST return `status` and, once approved, the initial access token until the token has been used or has expired.
-- C2-4. The Target SHOULD return `Retry-After` on pending polls, and the Requester MUST respect it.
-- C2-5. The Target MAY also resolve the Requester through discovery as in C1-1. It is not required to, because the signature already binds the request to an accountable, listed Operator.
+*Why it holds.* Someone who names another party in a request can create a pending connection, but the initial access token only ever travels to the domain-verified base URL of the Operator listed for that party, which rejects a `connectionId` it did not create. A forged decision needs the `connectionId`, which is unguessable and known only to the two parties (§6.3), and any token it carries is useless except at the Target's own registration endpoint. PACT takes no part in the exchange beyond serving the public Directory listing.
 
-*Why it holds.* Only the listed Operator holds the private key for its domain-verified `jwksUri`, so a request cannot be sent in another Operator's customer's name. The token is returned only to a correctly signed poll.
-
-#### Trade-offs
-
-| | C1 Approval to published endpoint | C2 Signed request + polling |
-|---|---|---|
-| **Cryptography for SPs** | None beyond TLS. | Key pair, JWKS publication, request signing and verification. |
-| **Can someone send requests in another party's name?** | Yes, but they are useless: they cannot get the token. The Target's approver may still see nuisance requests. | No. |
-| **Requester must be discoverable** | Yes. The Target has to resolve the Requester's Node, so a party that wants to connect but not be found cannot use this option. | No. Being served by a listed Operator is enough. |
-| **Decision delivery** | Pushed as soon as the owner decides, even days later. | Polled. Manual approval may take days, so polling must back off. |
-| **New Node methods** | Target: `POST connections`. Requester: `POST connections/{id}/decision`. Every Credential-Exchange-capable Node implements both. | Target: `POST connections`, `GET connections/{id}`. |
-| **Reuse** | None. | The same keys serve the signing variants of open decisions 1 and 2 (§5.5, §5.6), and prepare for credential-bound signing (§3.7.4). |
-| **Natural pairing** | Credentials-based discovery access: no keys anywhere. | Signed discovery access: one key pair per provider, used for queries and connection requests. |
-
-*Editor's note.* The pairings are not forced, but mixing them gives SPs key management *and* an extra callback endpoint. The WG may find it easier to decide B and C together.
+*Editor's note — alternatives considered.* Option C1 delivered the decision to the endpoint found through discovery, so every Requester had to be discoverable. Delivering to the listing removes that condition. Option C2 (signed requests and polling), or a request signed with a provider key, would stop requests that name another party from reaching the approver at all. But it needs key material on every provider, plus a polling endpoint on every Target for C2. The remaining risk is nuisance: a request can name a real company, but it cannot yield credentials, and Targets rate-limit. Request signing can be added as a minor version if that proves a problem (§5.9).
 
 ### 6.5 Approval and connection policy
 
@@ -94,7 +83,7 @@ The request itself is unsigned. Authenticity comes from where the approval is se
 2. In this version, approval is expected to be a human decision. Policy-based automatic approval MAY be offered by an implementation, but its rules are not specified in this version.
 3. The Target SHOULD show the approver: the Requester's name and `companyIds`; the assurance level with its attesting Service and evidence (§5.7), obtained by resolving the Requester through discovery where possible; the Requester's Operator; and any `message`.
 4. Each party decides which minimum assurance level it accepts (§3.5.3). The working position for this version is that *Email-verified* or *Domain-verified* is sufficient **where both parties agree**. A Target MAY decline, with `AssuranceBelowPolicy`, a request below its minimum.
-5. A declined request MUST move the connection to `declined`. Under Option C1 the decision is sent to the Requester; under Option C2 it is returned on the next poll.
+5. A declined request MUST move the connection to `declined`, and the decision is sent to the Requester as in §6.4.2.
 6. A pending request that is not decided within a period set by the Target SHOULD expire. The Target MUST report `expired` to the Requester in the same way.
 
 ### 6.6 Credential provisioning
@@ -147,11 +136,11 @@ This section **produces** the `client_id` and `client_secret` that base-specific
 
 ## Open items carried from this section
 
-- **Option C** — request authentication and decision delivery: approval to published endpoint, or signed request and polling (§6.4). Best decided together with Option B (§5.6).
+- WG confirmation of the authentication proposal (§6.4), and whether request signing is wanted later.
 - Policy-based automatic approval rules (§6.5).
 - Notifying the counterparty of suspension or revocation (§6.7.3).
 - Registration or renaming of the `pact_connection_id` client-metadata field (§6.6).
-- Presenting a verifiable credential at connection time (§3.7.4), as an optional addition to either option.
+- Presenting a verifiable credential at connection time (§3.7.4), as an optional addition to §6.4.
 - Whether connection lifecycle events MUST be audit-logged (§7).
 
 ---
@@ -164,5 +153,3 @@ This section **produces** the `client_id` and `client_secret` that base-specific
 - [RFC7591] — OAuth 2.0 Dynamic Client Registration Protocol.
 - [RFC7592] — OAuth 2.0 Dynamic Client Registration Management Protocol.
 - [RFC8414] — OAuth 2.0 Authorization Server Metadata.
-- [RFC9421] — HTTP Message Signatures.
-- [RFC9530] — Digest Fields.

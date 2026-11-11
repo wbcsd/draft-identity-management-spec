@@ -186,7 +186,7 @@ The Entity, or an Operator acting for it, presents a verifiable credential bindi
 
 1. This addendum defines the **generic** requirements (chain verified, revocation checked, outcome and timestamp recorded) and treats each ecosystem as a **profile**. The **vLEI profile** [VLEI-EGF] is defined first, with the GLEIF root of trust as its anchor.
 2. **Entity-level** credentials are in scope. A **delegated-role** credential, by which an Operator proves it is the authorised exchange agent for an Entity, is a named extension. Natural-person credentials are out of scope.
-3. Where a credential is bound, its key MAY also be used to sign connection requests (§6, Option C2).
+3. Where a credential is bound, its key could also be used to sign connection requests in a future version (§6.4).
 
 *Editor's note.* Whether generic W3C VC/DID credentials beyond the vLEI profile are accepted in this version is still open. The profile structure is there so they can be added without changing §3.5.
 
