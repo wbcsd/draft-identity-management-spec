@@ -208,6 +208,7 @@ paths:
         '200':
           description: All active and suspended listings.
           headers:
+            PACT-IM-Version: { $ref: '#/components/headers/PactImVersion' }
             ETag:
               schema: { type: string }
           content:
@@ -234,6 +235,8 @@ paths:
       responses:
         '200':
           description: The listing.
+          headers:
+            PACT-IM-Version: { $ref: '#/components/headers/PactImVersion' }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/DiscoveryService' }
@@ -328,6 +331,8 @@ paths:
       responses:
         '202':
           description: Request accepted and pending approval.
+          headers:
+            PACT-IM-Version: { $ref: '#/components/headers/PactImVersion' }
           content:
             application/json:
               schema:
@@ -365,6 +370,7 @@ paths:
         '200':
           description: Current state; includes the initial access token once approved.
           headers:
+            PACT-IM-Version: { $ref: '#/components/headers/PactImVersion' }
             Retry-After:
               schema: { type: integer }
           content:
@@ -392,6 +398,8 @@ paths:
       responses:
         '204':
           description: Decision received for a pending request this Node created.
+          headers:
+            PACT-IM-Version: { $ref: '#/components/headers/PactImVersion' }
         '404':
           $ref: '#/components/responses/Error'
 
@@ -442,6 +450,8 @@ components:
   responses:
     Error:
       description: Error response (base-specification shape).
+      headers:
+        PACT-IM-Version: { $ref: '#/components/headers/PactImVersion' }
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
