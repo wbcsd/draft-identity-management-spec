@@ -206,8 +206,8 @@ A positive answer describes one Entity and the Node(s) through which it can be c
 ### 5.11 Changes to discovery data
 
 1. Discovery answers are **not versioned and changes to them are not pushed**. What a provider publishes — which Nodes serve an Entity, which identifiers it carries, whether it has opted in — is read fresh each time it is resolved.
-2. A provider SHOULD send HTTP caching headers [RFC9111] with each answer, and the Discovery Service MUST pass them on unchanged.
-3. A requester MAY reuse an answer within its caching lifetime, but MUST resolve again immediately before sending a connection request (§6), and SHOULD resolve again when a connection or token request fails in a way that suggests the Node has moved.
+2. The Discovery Service MUST NOT forward a provider's caching headers or validators with the aggregated answer. It MUST return the aggregate response with `Cache-Control: no-store` and MUST NOT include provider-derived `ETag` or `Last-Modified` validators.
+3. A requester MUST NOT cache or reuse an aggregated answer, and MUST resolve again immediately before sending a connection request (§6). It SHOULD resolve again when a connection or token request fails in a way that suggests the Node has moved.
 4. When an Entity withdraws its opt-in or leaves its provider, later resolutions return no match (§5.8). Connections already established are not affected (§4.4.3); ending them belongs to the connection lifecycle (§6.7).
 
 ### 5.12 Summary figure
