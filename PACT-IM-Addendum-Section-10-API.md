@@ -91,7 +91,7 @@ Applies to every operation in §10.2–§10.4, whoever implements it.
 
 ### 10.4 Node connection interface
 
-*Implemented by Credential-Exchange-capable Nodes. Its URL is `{baseUrl}/im/{major}/connections`, at a major version the Node declares in its discovery answer (§5.9.1).*
+*Implemented by Credential-Exchange-capable Nodes. Its URL is `{baseUrl}/im/{major}/connections`, at a major version supported by both the Requester and Target Nodes (§5.9.1).*
 
 #### 10.4.1 `POST {baseUrl}/im/{major}/connections` — connection request (Target)
 
@@ -99,7 +99,7 @@ Applies to every operation in §10.2–§10.4, whoever implements it.
 2. Success: `202 Accepted` with `ConnectionAccepted` (`connectionId`, `status: pending`).
 3. Errors: `400 BadRequest`; `403 RequesterNotListed`; `404 NoSuchEntity` where `target.companyId` is not served by this Node; `422 AssuranceBelowPolicy` MAY be returned immediately where the Target applies an automatic minimum; `429` with `Retry-After`.
 4. *Option C2:* signed per C2-1 of §6.4; failure returns `401 InvalidSignature`.
-5. *Option C1:* returns `403 RequesterNotResolvable` where the check of C1-1 fails. The Target MAY instead accept the request and run the check before approval.
+5. *Option C1:* before accepting the request, the Target MUST perform the check in C1-1. It returns `403 RequesterNotResolvable` if the Requester Node cannot be confirmed, or `409 IncompatibleInterfaceVersion` if it does not support the connection major used by the request.
 
 #### 10.4.2 `GET {baseUrl}/im/{major}/connections/{connectionId}` — status poll (Target) — *Option C2 only*
 
@@ -108,7 +108,7 @@ Applies to every operation in §10.2–§10.4, whoever implements it.
 
 #### 10.4.3 `POST {baseUrl}/im/{major}/connections/{connectionId}/decision` — decision callback (Requester) — *Option C1 only*
 
-1. Sent by the Target to the Requester's Node at the `baseUrl` and a major version resolved through discovery (C1-2).
+1. Sent by the Target to the Requester's Node at the `baseUrl` and the same common major used for the connection request (C1-2).
 2. Request body: `ConnectionDecision`.
 3. The Requester MUST return `204` where `connectionId` is one it created and is pending; otherwise `404 NoSuchConnection` (C1-3).
 4. The Target SHOULD retry delivery with exponential back-off for at least 24 hours on `5xx` or network failure.
@@ -145,6 +145,7 @@ Error responses reuse the base-specification error response shape: a JSON object
 | `NoSuchConnection` | 404 | Target (C2); Requester (C1) | Unknown `connectionId`, or not visible to this caller. |
 | `RequesterNotListed` | 401/403 | Discovery Service (B1); Target | Caller's `serviceId` is not an active Directory listing. |
 | `RequesterNotResolvable` | 403 | Target (C1) | The Requester's Node could not be confirmed through its Discovery Service. |
+| `IncompatibleInterfaceVersion` | 409 | Target (C1) | The Requester's Node does not support the connection major used by the request. |
 | `InvalidSignature` | 401 | Discovery Service (B1); Target (C2) | HTTP Message Signature missing, invalid, or made with a key not at the listed `jwksUri`. |
 | `AssuranceBelowPolicy` | 422 | Target | The Requester's assurance level is below the Target's minimum (§6.5). |
 
@@ -349,6 +350,8 @@ paths:
           $ref: '#/components/responses/Error'
         '404':
           $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
         '422':
           $ref: '#/components/responses/Error'
         '429':
@@ -468,7 +471,7 @@ components:
       properties:
         code:
           type: string
-          examples: [NoSuchEntity, NoSuchConnection, RequesterNotListed, RequesterNotResolvable, InvalidSignature, AssuranceBelowPolicy, BadRequest]
+          examples: [NoSuchEntity, NoSuchConnection, RequesterNotListed, RequesterNotResolvable, IncompatibleInterfaceVersion, InvalidSignature, AssuranceBelowPolicy, BadRequest]
         message: { type: string }
 
     DiscoveryService:

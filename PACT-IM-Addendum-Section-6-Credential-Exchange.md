@@ -30,7 +30,9 @@ The flow has four steps: **request** (§6.3), **approve** (§6.5), **provision**
 
 ### 6.3 Connection request
 
-The Requester sends `POST {Target baseUrl}/im/{major}/connections` (§10.4), at a major version the Target declares (§5.9.1), with:
+The Requester sends `POST {Target baseUrl}/im/{major}/connections` (§10.4) at a major version supported by both its own Node and the Target Node (§5.9.1), with:
+
+If the Nodes have no connection major in common, the Requester MUST NOT send the request and MUST use manual credential exchange or report that no mutually supported connection interface exists.
 
 | Field | Requirement | Notes |
 |---|---|---|
@@ -55,8 +57,8 @@ A connection request arrives before any credentials exist, so it cannot be authe
 
 The request itself is unsigned. Authenticity comes from where the approval is sent.
 
-- C1-1. Before approving, the Target MUST resolve `requester.companyIds` through the PACT Discovery Service (§5.4, §10.2.2), and MUST confirm that an answer vouched by `requester.serviceId` lists `requester.nodeId` with at least one supported interface version. Otherwise it MUST reject the request with `RequesterNotResolvable`.
-- C1-2. On a decision, the Target MUST send `POST {Requester baseUrl}/im/{major}/connections/{connectionId}/decision` (§10.4), using the `baseUrl` and a major version obtained in C1-1 and never an endpoint supplied in the request. On approval, the body carries the initial access token (§6.6).
+- C1-1. Before accepting the request, the Target MUST resolve `requester.companyIds` through the PACT Discovery Service (§5.4, §10.2.2), and MUST confirm that an answer vouched by `requester.serviceId` lists `requester.nodeId` with the major version used by the request in its `interfaceVersions`. Otherwise it MUST reject the request with `RequesterNotResolvable` if the Node cannot be confirmed, or `IncompatibleInterfaceVersion` if the Nodes have no common connection major.
+- C1-2. On a decision, the Target MUST send `POST {Requester baseUrl}/im/{major}/connections/{connectionId}/decision` (§10.4), using the `baseUrl` from C1-1 and the same common major used by the connection request, never an endpoint supplied in the request. On approval, the body carries the initial access token (§6.6).
 - C1-3. The Requester MUST reject, with `404`, a decision for a `connectionId` it did not itself create. It SHOULD log such events as a possible impersonation attempt.
 - C1-4. The Requester MUST NOT use any endpoint contained in a decision message. It reads the Target's `registration_endpoint` from the Target's own well-known document (§6.2).
 

@@ -180,8 +180,8 @@ A positive answer describes one Entity and the Node(s) through which it can be c
 
 1. A provider MUST declare in its registry listing the major versions its discovery endpoint supports (`interfaceVersions`, §4.3.2). The declaration is the provider's own; it is not separately tested per version.
 2. The Discovery Service MUST call each provider at the highest major version that both the service and the provider support, and MUST NOT call a provider at a major version it has not declared.
-3. A requester MAY call the Discovery Service at any major version the service supports. The service MUST translate between versions when fanning out, so that a requester and a target provider need not support the same major version.
-4. A discovery answer lists, per Node, the major versions of the connection interface that Node supports (`nodes[].interfaceVersions`, §5.7). A Requester MUST send a connection request at a major version the Target declares (§6.3).
+3. A requester MAY call the Discovery Service at any major version the service supports. The service MUST translate between discovery-interface versions when fanning out, so a requester and a target provider need not support the same major version for discovery. This translation applies only to discovery operations and data; it does not make Node connection interfaces compatible.
+4. A discovery answer lists, per Node, the major versions of the connection interface that Node supports (`nodes[].interfaceVersions`, §5.7). A Requester MUST use a connection major supported by both its own Node and the Target Node (§6.3). If they have no major in common, the Requester MUST NOT attempt an automated connection and MUST use manual credential exchange or report that no mutually supported connection interface exists. Under C1, the Target MUST apply the same compatibility check before accepting a request and use that common major for the decision callback (§6.4).
 
 #### 5.9.2 Breaking changes
 
